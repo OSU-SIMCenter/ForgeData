@@ -55,8 +55,6 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-# fix = true
-src = ["forge_data", "examples"]
 
 [tool.ruff.lint]
 select = [
