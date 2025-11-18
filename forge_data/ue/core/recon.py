@@ -135,7 +135,7 @@ class Recon:
         TODO
         """
 
-        scan_stepover = 40  # mm stepped through for each scan
+        # scan_stepover = 40  # mm stepped through for each scan
 
         scanner_data = self.scanner_data_list[0]
         pcd, _ = self.reconstruct_pcd_error_compensated(scanner_data)
@@ -144,24 +144,24 @@ class Recon:
         pcds.append(pcd)
         no_overlap_pcds.append(pcd)
 
-        for i, scan_data in enumerate(self.scanner_data_list[1:], start=1):
-            self.i = i
-            self.current_scan_offset = scan_stepover * i
+        # for i, scan_data in enumerate(self.scanner_data_list[1:], start=1):
+        #     self.i = i
+        #     self.current_scan_offset = scan_stepover * i
 
-            # Create variables needed by error metric for RMSE
-            self.truth_pcd = pcds[i - 1]
-            self.current_overlap_start = np.nanmax(self.truth_pcd[:, 0]) - scan_stepover  # [mm]
-            self.current_overlap_end = self.current_overlap_start + scan_stepover
+        #     # Create variables needed by error metric for RMSE
+        #     self.truth_pcd = pcds[i - 1]
+        #     self.current_overlap_start = np.nanmax(self.truth_pcd[:, 0]) - scan_stepover  # [mm]
+        #     self.current_overlap_end = self.current_overlap_start + scan_stepover
 
-            pcd, _ = self.multiscan_stitching_error_compensation(scan_data, vis=False)
+        #     pcd, _ = self.multiscan_stitching_error_compensation(scan_data)
 
-            # Remove overlap from pointclouds for final pcd. Of course we still need
-            # that overlap for the error compensation.
-            mask = pcd[:, 0] >= self.current_overlap_end
-            pcd_no_overlap = pcd[mask]
-            no_overlap_pcds.append(pcd_no_overlap)
+        #     # Remove overlap from pointclouds for final pcd. Of course we still need
+        #     # that overlap for the error compensation.
+        #     mask = pcd[:, 0] >= self.current_overlap_end
+        #     pcd_no_overlap = pcd[mask]
+        #     no_overlap_pcds.append(pcd_no_overlap)
 
-            pcds.append(pcd)
+        #     pcds.append(pcd)
 
         self.finished_recon_pcd = np.vstack(no_overlap_pcds)
 
@@ -180,12 +180,18 @@ class Recon:
         mask = (pcd[:, 0] >= part_min + clip_front) & (pcd[:, 0] <= part_length - clip_end)
         pcd = pcd[mask]
 
+        # --- Statistical outlier removal ---
+        pcdo = o3d.geometry.PointCloud()
+        pcdo.points = o3d.utility.Vector3dVector(pcd)
+        pcdo, _ = pcdo.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
+        pcd = np.asarray(pcdo.points)
+
         # --- Fill front (x ~ clipped start) ---
         slice_thickness_front = 2.0  # mm, enough points for triangulation
         mask = (pcd[:, 0] >= part_min + clip_front) & (pcd[:, 0] <= part_min + clip_front + slice_thickness_front)
         startpoints = pcd[mask]
         startpoints_yz = startpoints[:, [1, 2]]
-        origin_filled_points = grid_ring_with_points(startpoints_yz, vis=False)
+        origin_filled_points = grid_ring_with_points(startpoints_yz)
         x = (part_min + clip_front + np.zeros_like(origin_filled_points[:, 0])).reshape(-1, 1)
         origin_filled_points_3d = np.hstack((x, origin_filled_points))
 
@@ -196,7 +202,7 @@ class Recon:
         mask = pcd[:, 0] >= new_length - slice_thickness_end
         endpoints = pcd[mask]
         endpoints_yz = endpoints[:, [1, 2]]
-        filled_points = grid_ring_with_points(endpoints_yz, vis=False)
+        filled_points = grid_ring_with_points(endpoints_yz)
         x = (new_length + np.zeros_like(filled_points[:, 0])).reshape(-1, 1)
         filled_points_3d = np.hstack((x, filled_points))
 
@@ -259,7 +265,7 @@ class Recon:
         return mesh
 
 
-def grid_ring_with_points(ring, points_per_unit_area=10, vis=False):
+def grid_ring_with_points(ring, points_per_unit_area=10):
     from scipy.spatial import Delaunay
 
     tri = Delaunay(ring)

@@ -1,13 +1,56 @@
-""" """
+"""
+TODO
+"""
 
+from collections import defaultdict
 import pandas as pd
+import re
+
+HIT_NUM_REGEX = re.compile(r"Hitpoint (\d+)")
 
 
-def process_raw_dataset():
+def process_raw_directory():
     """
     Process a dataset.
     """
     pass
+
+
+def process_TP_directory(path):
+
+    global_files, hits_data = discover_and_group_files(path)
+
+    for global_file in global_files:
+        if global_file.suffix == ".obj":
+            process_obj_file(global_file)
+
+
+def discover_and_group_files(path):
+    global_files = []
+    hits_data = defaultdict(dict)
+
+    for item in path.rglob("*"):
+        if not item.is_file():
+            continue
+
+        if item.suffix == ".txt":
+            continue
+
+        if item.parent == path:
+            global_files.append(item)
+
+        else:
+            match = HIT_NUM_REGEX.search(item.name)
+            if match:
+                hit_num = int(match.group(1))
+                parent_dir_name = item.parent.name
+
+                if parent_dir_name == "3D Scan Data" and item.suffix == ".csv":
+                    hits_data[hit_num]["scan"] = item
+                elif parent_dir_name == "Load Stroke Data" and item.suffix == ".csv":
+                    hits_data[hit_num]["load_stroke"] = item
+
+    return global_files, hits_data
 
 
 def process_linescanner_file(file):
@@ -21,6 +64,13 @@ def process_linescanner_file(file):
         df = parse_csv_0_1_0(file)
 
     return df
+
+
+def process_obj_file(file):
+    """
+    TODO
+    """
+    pass
 
 
 def get_folder_structure_version(path):

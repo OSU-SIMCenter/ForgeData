@@ -6,7 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
-from forge_data.data.raw import process_linescanner_file
+from forge_data.data.raw import process_linescanner_file, process_TP_directory
 from forge_data.ue.api import mesh_from_dataframe
 
 script_dir = Path(__file__).resolve()
@@ -24,8 +24,11 @@ def main():
     os.makedirs(args.save_path, exist_ok=True)
 
     # TODO: rm
+    tp_path = Path(r"C:\Users\colto\Github\ForgeData\data\raw\2025_10_28 T18_01_24.E8 Tensile Bar 4140\TP1")
+    process_TP_directory(tp_path)
+
     linescan_path = Path(
-        r"/local/scratch/wright.2135/Github/ForgeData/data/raw/2025_10_28 T16_47_30.E8 Tensile Bar 15-5PH/TP1/3D Scan Data/2025_10_28 T16_56_26.3D Scan at Hitpoint 31.csv"
+        r"C:\Users\colto\Github\ForgeData\data\raw\2025_10_28 T18_01_24.E8 Tensile Bar 4140\TP1\3D Scan Data\2025_10_28 T18_09_31.3D Scan at Hitpoint 31.csv"
     )
     df = process_linescanner_file(linescan_path)
     obj = mesh_from_dataframe([df])
