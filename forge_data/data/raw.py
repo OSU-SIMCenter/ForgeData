@@ -1,13 +1,6 @@
 """ """
 
-import numpy as np
 import pandas as pd
-import pathlib
-from tqdm import tqdm
-import h5py
-import sqlite3
-
-# from forge_data.micro_epsilon import Recon
 
 
 def process_raw_dataset():
@@ -19,13 +12,22 @@ def process_raw_dataset():
 
 def process_linescanner_file(file):
     """
-    Load raw linescanner file & process into pointcloud and mesh.
+    Load raw linescanner file & process into pandas dataframe.
     """
 
     file_version = get_linescanner_file_version(file)
 
     if file_version == "csv-0.1.0":
         df = parse_csv_0_1_0(file)
+
+    return df
+
+
+def get_folder_structure_version(path):
+    """
+    This seems to change often, determine the layout of raw files for parsing.
+    """
+    pass
 
 
 def get_linescanner_file_version(file):
@@ -59,16 +61,16 @@ def parse_csv_0_1_0(file):
     df_odd = df.iloc[1::2].reset_index(drop=True)
     timestamps = df_even.iloc[:, 2]
     temps = df_odd.iloc[:, 0]
-    a_axis_angles = df_odd.iloc[:, 2]
     x_values = df_even.iloc[:, 4:].apply(lambda row: row.dropna().tolist(), axis=1)
     z_values = df_odd.iloc[:, 4:].apply(lambda row: row.dropna().tolist(), axis=1)
+    a_axis_angles = df_odd.iloc[:, 2]
 
     df = pd.DataFrame({
         "timestamps_ms": timestamps,
         "temperature_C": temps,
-        "a_axis_deg": a_axis_angles,
         "x_mm": x_values,
         "z_mm": z_values,
+        "a_axis_deg": a_axis_angles,
     })
 
     return df

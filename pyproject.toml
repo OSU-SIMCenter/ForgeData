@@ -20,11 +20,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "torch",
     "trimesh[easy]",
     "h5py",
     "pandas",
     "tqdm",
+    "scipy",
+    "open3d"
+
 ]
 
 [tool.setuptools]
