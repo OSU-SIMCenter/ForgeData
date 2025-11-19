@@ -179,6 +179,7 @@ class Recon:
         clip_end = clip_end_fraction * part_length
         mask = (pcd[:, 0] >= part_min + clip_front) & (pcd[:, 0] <= part_length - clip_end)
         pcd = pcd[mask]
+        pcd[:, 0] = pcd[:, 0] - pcd[:, 0].min()
 
         # --- Statistical outlier removal ---
         pcdo = o3d.geometry.PointCloud()
@@ -206,6 +207,8 @@ class Recon:
         x = (new_length + np.zeros_like(filled_points[:, 0])).reshape(-1, 1)
         filled_points_3d = np.hstack((x, filled_points))
 
+        # --- Slide back to origin ---
+
         # --- Combine original points with filled front and back ---
         pcd = np.vstack([pcd, origin_filled_points_3d, filled_points_3d])
 
@@ -225,8 +228,6 @@ class Recon:
         max_x = np.max(np_points[:, 0])
         min_x = np.min(np_points[:, 0])
         n_center_points = 10
-        centers = np.linspace(min_x, max_x, n_center_points)
-        centers = np.stack([centers, np.zeros(n_center_points), np.zeros(n_center_points)], axis=-1)
         centers = np.stack([np_points[:, 0], np.zeros(len(np_points)), np.zeros(len(np_points))], axis=1)
 
         for i in range(len(np_points)):
@@ -240,13 +241,13 @@ class Recon:
             point = np_points[i]
             normal = np_normals[i]
             condition1 = np.isclose(point[0], 0, rtol=0, atol=0.1)  # Absolute isnear
-            condition2 = np.dot(normal, np.array([1, 0, 0])) > 0.9
+            condition2 = np.dot(normal, np.array([1, 0, 0])) > 0.8
             if condition1 and condition2:
                 np_normals[i] = -np_normals[i]
 
             # If near x=part_length and pointing -x, flip
             condition1 = np.isclose(point[0], self.new_length, rtol=0, atol=0.1)  # Absolute isnear
-            condition2 = np.dot(normal, np.array([-1, 0, 0])) > 0.9
+            condition2 = np.dot(normal, np.array([-1, 0, 0])) > 0.8
             if condition1 and condition2:
                 np_normals[i] = -np_normals[i]
 
