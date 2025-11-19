@@ -6,7 +6,7 @@ import argparse
 import os
 from pathlib import Path
 
-from forge_data.data.raw import process_raw_directory
+from forge_data.data.crawler import process_raw_directory
 
 script_dir = Path(__file__).resolve()
 project_root = script_dir.parent.parent
