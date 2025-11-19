@@ -71,6 +71,7 @@ def process_TP_directory(path, h5_conn, sqlite_conn):
     for global_file in global_files:
         if global_file.suffix == ".obj":
             vertices, faces = process_obj_file(global_file)
+            # TODO Change db_key to use Pathlib.relative_to()
             db_key = f"{global_file.parent.parent.name}/{global_file.parent.name}/{global_file.name}"
             h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
             h5_conn.create_dataset(f"{db_key}/faces", data=faces)
