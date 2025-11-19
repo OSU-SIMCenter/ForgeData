@@ -260,7 +260,7 @@ class Recon:
         mesh.compute_vertex_normals()
         mesh_pts = np.asarray(mesh.vertices)
         mesh.vertex_colors = o3d.utility.Vector3dVector(np.random.uniform(size=(len(mesh_pts), 3)))
-        o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
+        # o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
 
         return mesh
 

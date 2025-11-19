@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from forge_data.ue.core.recon import Recon
+from forge_data.ue.core import Recon
 
 
 def mesh_from_dataframe(df: list[pd.DataFrame], args=None) -> tuple[np.ndarray, np.ndarray]:
