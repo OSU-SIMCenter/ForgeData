@@ -29,29 +29,19 @@ class Recon:
         """
 
         self.args = args
-        self.default_axis_angle_vector = np.array([0.0, 0.0, -0.0, -1.06619719, -0.00775896, 0.04988556, 301.72860016])
         self.n_error_calls = 0
-
-        self.default_optimization_bounds = (
-            (0, 100),
-            (0, 100),
-            (0, 100),
-            (0, 1),
-            (-0.1, 0.1),
-            (-0.1, 0.1),
-            (200, 380),
-        )
-        self.generate_stock_pcd(0.625*25.4, "cylindrical")
+        self.generate_stock_pcd(0.625 * 25.4, "cylindrical")
 
         self.i = 0
         self.j = 0
 
+    @timeit
     def reconstruct_pcd_axis_angle(self, V, *args, **kwargs):
         self.j += 1
 
-        rotation_axis = V[3:6]
+        rotation_axis = V[0:3]
         rotation_axis = rotation_axis / np.linalg.norm(rotation_axis)
-        radial_offset = V[6]
+        radial_offset = V[3]
         (scanner_data, return_pcd) = args
         (_, x, z, th) = scanner_data
         n_rotations = th.shape[0]
@@ -69,7 +59,7 @@ class Recon:
 
         reconstructed_pcd = np.vstack(reconstructed_points)
 
-        if return_pcd == False:
+        if not return_pcd:
             pcd1 = o3d.geometry.PointCloud()
             pcd1.points = o3d.utility.Vector3dVector(reconstructed_pcd)
             return np.mean(self.target_pcd.compute_point_cloud_distance(pcd1))
@@ -77,19 +67,18 @@ class Recon:
         return reconstructed_pcd
 
     def reconstruct_pcd(self, scanner_data):
-
         if self.args.error_comp:
             res = scipy.optimize.minimize(
                 self.reconstruct_pcd_axis_angle,
-                self.default_axis_angle_vector,
+                np.array(self.args.default_axis_angle_vector),
                 args=(scanner_data, False),
                 method="SLSQP",
                 tol=1e-6,
-                bounds=self.default_optimization_bounds,
+                bounds=self.args.default_optimization_bounds,
             )
             xf = res.x
         else:
-            xf = self.default_axis_angle_vector
+            xf = np.array(self.args.default_axis_angle_vector)
         # print(f"Final vector: {xf}")
         reconstructed_pcd = self.reconstruct_pcd_axis_angle(xf, *(scanner_data, True))
         return reconstructed_pcd, xf
@@ -102,7 +91,7 @@ class Recon:
 
         # Split the dataframe into different scans when theta rolls over.
         reset_indices = df.index[df["a_axis_deg"].diff() < -180].tolist()
-        df_list = np.split(df, reset_indices) # TODO: Rm, causes FutureWarning
+        df_list = np.split(df, reset_indices)  # TODO: Rm, causes FutureWarning
         self.scanner_data_list = []
         for df in df_list:
             t = np.stack(df["timestamps_ms"].to_numpy())
@@ -127,14 +116,13 @@ class Recon:
             )
             self.scanner_data_list.append(scanner_data)
 
-    # @timeit
+    @timeit
     def process(self):
         """
         TODO
         """
 
         scanner_data = self.scanner_data_list[0]
-        self.args.error_comp = True
         pcd, _ = self.reconstruct_pcd(scanner_data)
         pcds = []
         no_overlap_pcds = []
@@ -155,11 +143,11 @@ class Recon:
         #     overlap_end = self.scanner_data_list[1:][0].min()
 
         #     mask = (t_pcd[:, 0] > overlap_end)
-        #     # t_pcd = 
+        #     # t_pcd = ...
 
         #     target_pcd = o3d.geometry.PointCloud()
         #     pcd.points = o3d.utility.Vector3dVector(points)
-        #     # self.target_pcd = 
+        #     # self.target_pcd = ...
 
         #     pcd, _ = self.multiscan_stitching_error_compensation(scan_data)
 
@@ -221,7 +209,7 @@ class Recon:
 
         return pcd
 
-    # @timeit
+    @timeit
     def pcd_to_mesh(self, pcd0):
         """
         TODO
@@ -256,7 +244,7 @@ class Recon:
 
         return mesh
 
-    # @timeit
+    @timeit
     def call_o3d(self, pcd):
         mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
         mesh = mesh.remove_duplicated_vertices()
@@ -269,12 +257,12 @@ class Recon:
         # o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
         return mesh
 
-    def generate_stock_pcd(self, diameter, type):
+    def generate_stock_pcd(self, diameter, stock_type):
         """
         TODO: Take in stock.obj for this
         """
-        r = diameter/2 # [mm]
-        stock_length = 20 # [mm]
+        r = diameter / 2  # [mm]
+        stock_length = 20  # [mm]
         n_points = 10000
         theta = np.random.uniform(0, 2 * np.pi, n_points)
         x = np.random.uniform(0, stock_length, n_points)
@@ -285,6 +273,7 @@ class Recon:
         pcd.points = o3d.utility.Vector3dVector(points)
         # o3d.visualization.draw_geometries([pcd], point_show_normal=True)
         self.target_pcd = pcd
+
 
 def grid_ring_with_points(ring, points_per_unit_area=10):
     from scipy.spatial import Delaunay

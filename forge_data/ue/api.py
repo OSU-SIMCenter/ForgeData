@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 import numpy as np
 import pandas as pd
 
@@ -8,7 +10,7 @@ def mesh_from_dataframe(df: pd.DataFrame, args=None) -> tuple[np.ndarray, np.nda
     """
     TODO
     """
-    recon = Recon(DefaultArgs())
+    recon = Recon(ReconConfig(error_comp=True))
     recon.preprocess(df)
     recon.process()
     pcd = recon.post_process()
@@ -19,8 +21,8 @@ def mesh_from_dataframe(df: pd.DataFrame, args=None) -> tuple[np.ndarray, np.nda
     return vertices, faces
 
 
-class DefaultArgs:
-    def __init__(self):
-        self.visualize = False
-        self.verbosity = "error"
-        self.error_comp = False
+@dataclass
+class ReconConfig:
+    default_axis_angle_vector: list[float] = field(default_factory=lambda: [1.0, 0.0, 0.0, 290])
+    default_optimization_bounds: tuple[tuple[float, float], ...] = ((0.8, 1), (-0.05, 0.05), (-0.05, 0.05), (280, 310))
+    error_comp: bool = False
