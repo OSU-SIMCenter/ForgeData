@@ -1,5 +1,3 @@
-import re
-
 import h5py
 import torch
 
@@ -17,7 +15,8 @@ class ForgeDataset(torch.utils.data.Dataset):
         return len(self.sample_keys)
 
     def print_h5_structure(self):
-        with h5py.File(self.h5_file, 'r') as f:
+        with h5py.File(self.h5_file, "r") as f:
+
             def print_attrs(name, obj):
                 print(name)
                 for key, val in obj.attrs.items():

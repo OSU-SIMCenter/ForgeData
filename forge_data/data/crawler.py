@@ -86,7 +86,7 @@ def process_TP_directory(path, h5_conn, sqlite_conn):
         if "scan" in hit_files:
             scan_file = hit_files["scan"]
             df = process_linescanner_file(scan_file)
-            vertices, faces = mesh_from_dataframe([df])
+            vertices, faces = mesh_from_dataframe(df)
             db_key = db_keybase + "/reconstructed_mesh"
             h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
             h5_conn.create_dataset(f"{db_key}/faces", data=faces)

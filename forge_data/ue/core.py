@@ -1,9 +1,25 @@
+import time
+from functools import wraps
+
 import numpy as np
 import open3d as o3d
 import scipy.optimize
 from scipy.spatial.transform import Rotation
 
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
+
+
+def timeit(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+        print(f"    [ue.core] {func.__name__} took {execution_time:.4f} seconds")
+        return result
+
+    return wrapper
 
 
 class Recon:
@@ -20,43 +36,15 @@ class Recon:
             (0, 100),
             (0, 100),
             (0, 100),
-            (-1, 1),
+            (0, 1),
             (-0.1, 0.1),
             (-0.1, 0.1),
             (200, 380),
         )
+        self.generate_stock_pcd(0.625*25.4, "cylindrical")
 
-        # Multiscan variables, default init is for single scan
         self.i = 0
         self.j = 0
-        self.current_scan_offset = 0
-        self.current_error_metric_function = self.error_metric
-
-    def error_metric(self, reconstructed_pcd):
-        # Use the stored error mesh
-        mesh = self.error_mesh
-        self.n_error_calls += 1
-
-        # Create a boolean mask for points where x is within the smallest 10% of the range.
-        x_max = np.max(reconstructed_pcd[:, 0], axis=0)
-        x_min = np.min(reconstructed_pcd[:, 0], axis=0)
-        x_range = x_max - x_min
-        mask = reconstructed_pcd[:, 0] <= (x_min + x_range * 0.40)
-        masked_reconstructed_pcd = reconstructed_pcd[mask]
-
-        # Setup raycasting scene and get the closest points on the stock mesh.
-        pcd_o3d = o3d.core.Tensor(masked_reconstructed_pcd, dtype=o3d.core.Dtype.Float32)
-        scene = o3d.t.geometry.RaycastingScene()
-        # Convert legacy mesh to the tensor-based geometry.
-        mesh_t = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-        scene.add_triangles(mesh_t)
-        closest_points = scene.compute_closest_points(pcd_o3d)["points"].numpy()
-
-        # Compute RMSE as the error metric.
-        distances = masked_reconstructed_pcd - closest_points
-        rmse = np.sqrt(((distances) ** 2).mean())
-
-        return rmse
 
     def reconstruct_pcd_axis_angle(self, V, *args, **kwargs):
         self.j += 1
@@ -80,32 +68,41 @@ class Recon:
             reconstructed_points.append(transformed_points)
 
         reconstructed_pcd = np.vstack(reconstructed_points)
-        reconstructed_pcd[:, 0] = reconstructed_pcd[:, 0] + self.current_scan_offset
 
-        if return_pcd:
-            return reconstructed_pcd
-        rmse = self.current_error_metric_function(reconstructed_pcd)
-        return rmse
+        if return_pcd == False:
+            pcd1 = o3d.geometry.PointCloud()
+            pcd1.points = o3d.utility.Vector3dVector(reconstructed_pcd)
+            return np.mean(self.target_pcd.compute_point_cloud_distance(pcd1))
 
-    def reconstruct_pcd_error_compensated(self, scanner_data):
+        return reconstructed_pcd
 
-        args = (scanner_data, False)
+    def reconstruct_pcd(self, scanner_data):
+
         if self.args.error_comp:
             res = scipy.optimize.minimize(
-                self.reconstruct_pcd_axis_angle, self.default_axis_angle_vector, args=args, method="SLSQP", tol=1e-6
+                self.reconstruct_pcd_axis_angle,
+                self.default_axis_angle_vector,
+                args=(scanner_data, False),
+                method="SLSQP",
+                tol=1e-6,
+                bounds=self.default_optimization_bounds,
             )
             xf = res.x
         else:
             xf = self.default_axis_angle_vector
-
+        # print(f"Final vector: {xf}")
         reconstructed_pcd = self.reconstruct_pcd_axis_angle(xf, *(scanner_data, True))
         return reconstructed_pcd, xf
 
-    def preprocess(self, df_list):
+    # @timeit
+    def preprocess(self, df):
         """
         TODO
         """
 
+        # Split the dataframe into different scans when theta rolls over.
+        reset_indices = df.index[df["a_axis_deg"].diff() < -180].tolist()
+        df_list = np.split(df, reset_indices) # TODO: Rm, causes FutureWarning
         self.scanner_data_list = []
         for df in df_list:
             t = np.stack(df["timestamps_ms"].to_numpy())
@@ -130,34 +127,45 @@ class Recon:
             )
             self.scanner_data_list.append(scanner_data)
 
+    # @timeit
     def process(self):
         """
         TODO
         """
 
-        # scan_stepover = 40  # mm stepped through for each scan
-
         scanner_data = self.scanner_data_list[0]
-        pcd, _ = self.reconstruct_pcd_error_compensated(scanner_data)
+        self.args.error_comp = True
+        pcd, _ = self.reconstruct_pcd(scanner_data)
         pcds = []
         no_overlap_pcds = []
         pcds.append(pcd)
         no_overlap_pcds.append(pcd)
+        pcd0 = o3d.geometry.PointCloud()
+        pcd0.points = o3d.utility.Vector3dVector(pcd)
+        # o3d.visualization.draw_geometries([pcd0, self.target_pcd], point_show_normal=True)
+
+        # TODO: Have Brian remove offset from raw data & save machine coordinates from scans.
 
         # for i, scan_data in enumerate(self.scanner_data_list[1:], start=1):
         #     self.i = i
-        #     self.current_scan_offset = scan_stepover * i
 
         #     # Create variables needed by error metric for RMSE
-        #     self.truth_pcd = pcds[i - 1]
-        #     self.current_overlap_start = np.nanmax(self.truth_pcd[:, 0]) - scan_stepover  # [mm]
-        #     self.current_overlap_end = self.current_overlap_start + scan_stepover
+        #     t_pcd = pcds[i - 1]
+        #     self.current_overlap_start = np.nanmax(t_pcd[:, 0])
+        #     overlap_end = self.scanner_data_list[1:][0].min()
+
+        #     mask = (t_pcd[:, 0] > overlap_end)
+        #     # t_pcd = 
+
+        #     target_pcd = o3d.geometry.PointCloud()
+        #     pcd.points = o3d.utility.Vector3dVector(points)
+        #     # self.target_pcd = 
 
         #     pcd, _ = self.multiscan_stitching_error_compensation(scan_data)
 
         #     # Remove overlap from pointclouds for final pcd. Of course we still need
         #     # that overlap for the error compensation.
-        #     mask = pcd[:, 0] >= self.current_overlap_end
+        #     mask = pcd[:, 0] >= overlap_end
         #     pcd_no_overlap = pcd[mask]
         #     no_overlap_pcds.append(pcd_no_overlap)
 
@@ -167,19 +175,21 @@ class Recon:
 
         return self.finished_recon_pcd
 
+    # @timeit
     def post_process(self):
         pcd = self.finished_recon_pcd
-        part_length = np.nanmax(pcd[:, 0])
+        part_length = np.nanmax(pcd[:, 0]) - np.nanmin(pcd[:, 0])
         part_min = np.nanmin(pcd[:, 0])
 
-        # --- Clip relative percentages off the front and back ---
-        clip_front_fraction = 0.03
+        # --- Clip relative percentages off the origin and end ---
+        clip_origin_fraction = 0.01
         clip_end_fraction = 0.05
-        clip_front = clip_front_fraction * part_length
+        clip_origin = clip_origin_fraction * part_length
         clip_end = clip_end_fraction * part_length
-        mask = (pcd[:, 0] >= part_min + clip_front) & (pcd[:, 0] <= part_length - clip_end)
+        mask = (pcd[:, 0] >= part_min + clip_origin) & (pcd[:, 0] <= part_length - clip_end)
         pcd = pcd[mask]
         pcd[:, 0] = pcd[:, 0] - pcd[:, 0].min()
+        part_min = np.nanmin(pcd[:, 0])
 
         # --- Statistical outlier removal ---
         pcdo = o3d.geometry.PointCloud()
@@ -187,16 +197,16 @@ class Recon:
         pcdo, _ = pcdo.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
         pcd = np.asarray(pcdo.points)
 
-        # --- Fill front (x ~ clipped start) ---
-        slice_thickness_front = 2.0  # mm, enough points for triangulation
-        mask = (pcd[:, 0] >= part_min + clip_front) & (pcd[:, 0] <= part_min + clip_front + slice_thickness_front)
+        # --- Cap origin (x ~ clipped start) ---
+        slice_thickness_origin = 2.0  # mm, enough points for triangulation
+        mask = (pcd[:, 0] >= part_min + clip_origin) & (pcd[:, 0] <= part_min + clip_origin + slice_thickness_origin)
         startpoints = pcd[mask]
         startpoints_yz = startpoints[:, [1, 2]]
         origin_filled_points = grid_ring_with_points(startpoints_yz)
-        x = (part_min + clip_front + np.zeros_like(origin_filled_points[:, 0])).reshape(-1, 1)
+        x = (part_min + np.zeros_like(origin_filled_points[:, 0])).reshape(-1, 1)
         origin_filled_points_3d = np.hstack((x, origin_filled_points))
 
-        # --- Fill end (x ~ clipped end) ---
+        # --- Cap end (x ~ clipped end) ---
         new_length = np.nanmax(pcd[:, 0])
         self.new_length = new_length
         slice_thickness_end = 1.0  # mm
@@ -207,13 +217,11 @@ class Recon:
         x = (new_length + np.zeros_like(filled_points[:, 0])).reshape(-1, 1)
         filled_points_3d = np.hstack((x, filled_points))
 
-        # --- Slide back to origin ---
-
-        # --- Combine original points with filled front and back ---
         pcd = np.vstack([pcd, origin_filled_points_3d, filled_points_3d])
 
         return pcd
 
+    # @timeit
     def pcd_to_mesh(self, pcd0):
         """
         TODO
@@ -225,34 +233,31 @@ class Recon:
         np_points = np.array(pcd.points)
         np_normals = np.array(pcd.normals)
 
-        max_x = np.max(np_points[:, 0])
-        min_x = np.min(np_points[:, 0])
-        n_center_points = 10
-        centers = np.stack([np_points[:, 0], np.zeros(len(np_points)), np.zeros(len(np_points))], axis=1)
+        # Vector r = [x,y,z] - [x,0,0] = [0, -y, -z]
+        # norm dot r = [0, -ny*y, -nz*z]
+        norm_dot_radius = -(np_points[:, 1] * np_normals[:, 1] + np_points[:, 2] * np_normals[:, 2])
+        mask_centers_flip = norm_dot_radius > 0  # If the norm points toward the x-axis, you'll want to flip it.
+        # Convert True=1 False=0 to True=-1 and False=1 for multiply
+        mask_centers_flip_mult = 1 - 2 * mask_centers_flip.astype(int)
+        temp_normal = np_normals[:, 0] * mask_centers_flip_mult  # We only worry about x dir for next two masks
 
-        for i in range(len(np_points)):
-            # If pointing towards the x-axis, flip the normal
-            points_to_center = centers[i] - np_points[i]
-            dot_products = np.dot(points_to_center, np_normals[i])
-            if np.any(dot_products > 0):
-                np_normals[i] = -np_normals[i]
+        # If the x value of the point is near the origin and the normal is pointing in the +x direction, flip
+        mask_x0 = (np.abs(np_points[:, 0]) < 0.1) & (temp_normal > 0.8)
 
-            # If near x=0 and pointing +x, flip
-            point = np_points[i]
-            normal = np_normals[i]
-            condition1 = np.isclose(point[0], 0, rtol=0, atol=0.1)  # Absolute isnear
-            condition2 = np.dot(normal, np.array([1, 0, 0])) > 0.8
-            if condition1 and condition2:
-                np_normals[i] = -np_normals[i]
-
-            # If near x=part_length and pointing -x, flip
-            condition1 = np.isclose(point[0], self.new_length, rtol=0, atol=0.1)  # Absolute isnear
-            condition2 = np.dot(normal, np.array([-1, 0, 0])) > 0.8
-            if condition1 and condition2:
-                np_normals[i] = -np_normals[i]
+        # If the x value of the point is near the part's end and the normal is pointing in the -x direction, flip
+        mask_xL = (np.abs(np_points[:, 0] - self.new_length) < 0.1) & (temp_normal < -0.8)
+        # Flip from mask centers and flip from either maskx0 or maskxl
+        final_flip_mask = mask_centers_flip ^ (mask_x0 | mask_xL)
+        np_normals[final_flip_mask] *= -1
 
         pcd.normals = o3d.utility.Vector3dVector(np_normals)
+        # o3d.visualization.draw_geometries([pcd], point_show_normal=True)
+        mesh = self.call_o3d(pcd)
 
+        return mesh
+
+    # @timeit
+    def call_o3d(self, pcd):
         mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
         mesh = mesh.remove_duplicated_vertices()
         mesh = mesh.remove_duplicated_triangles()
@@ -262,9 +267,24 @@ class Recon:
         mesh_pts = np.asarray(mesh.vertices)
         mesh.vertex_colors = o3d.utility.Vector3dVector(np.random.uniform(size=(len(mesh_pts), 3)))
         # o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
-
         return mesh
 
+    def generate_stock_pcd(self, diameter, type):
+        """
+        TODO: Take in stock.obj for this
+        """
+        r = diameter/2 # [mm]
+        stock_length = 20 # [mm]
+        n_points = 10000
+        theta = np.random.uniform(0, 2 * np.pi, n_points)
+        x = np.random.uniform(0, stock_length, n_points)
+        y = r * np.cos(theta)
+        z = r * np.sin(theta)
+        points = np.stack([x, y, z], axis=1)
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+        # o3d.visualization.draw_geometries([pcd], point_show_normal=True)
+        self.target_pcd = pcd
 
 def grid_ring_with_points(ring, points_per_unit_area=10):
     from scipy.spatial import Delaunay
