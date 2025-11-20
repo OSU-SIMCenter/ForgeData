@@ -16,9 +16,10 @@ from forge_data.ue.api import ReconConfig
 from forge_data.ue.core import Recon
 
 script_dir = Path(__file__).resolve()
-project_root = script_dir.parent.parent
+project_root = script_dir.parent.parent.parent
 default_raw_path = project_root / "data" / "raw"
-default_save_path = project_root / "results"
+default_save_path = project_root / "data" / "results"
+os.makedirs(default_save_path, exist_ok=True)
 
 
 def parse_input(prompt, default_value):
