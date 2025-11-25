@@ -10,7 +10,7 @@ def mesh_from_dataframe(df: pd.DataFrame, args=None) -> tuple[np.ndarray, np.nda
     """
     TODO
     """
-    recon = Recon(ReconConfig(error_comp=True))
+    recon = Recon(ReconConfig(error_comp=False))
     recon.preprocess(df)
     recon.process()
     pcd = recon.post_process()
