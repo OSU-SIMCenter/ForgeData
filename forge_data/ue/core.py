@@ -239,7 +239,7 @@ class Recon:
         np_normals[final_flip_mask] *= -1
 
         pcd.normals = o3d.utility.Vector3dVector(np_normals)
-        o3d.visualization.draw_geometries([pcd], point_show_normal=True)
+        # o3d.visualization.draw_geometries([pcd], point_show_normal=True)
         mesh = self.call_o3d(pcd)
 
         return mesh
@@ -254,7 +254,7 @@ class Recon:
         mesh.compute_vertex_normals()
         mesh_pts = np.asarray(mesh.vertices)
         mesh.vertex_colors = o3d.utility.Vector3dVector(np.random.uniform(size=(len(mesh_pts), 3)))
-        o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
+        # o3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
         return mesh
 
     def generate_stock_pcd(self, diameter, stock_type):

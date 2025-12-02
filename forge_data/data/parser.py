@@ -25,8 +25,10 @@ def process_load_stroke_file(file):
 
     file_version = get_load_stroke_file_version(file)
 
-    if file_version == "LS-csv-0.1.0":
+    if file_version == "LS-csv-0.1.0" or file_version == "LS-csv-0.1.1":
         df = parse_ls_csv_0_1_0(file)
+    else:
+        raise ValueError(f"Unsuppoted file version detected in file: {file}")
 
     return df
 
@@ -80,17 +82,15 @@ def get_linescanner_file_version(file):
             and row1[3] == "Z values (mm):"
         ):
             return "ue-csv-0.1.0"
-        elif(
+        elif (
             row0[0] == "Scan offset X:"
             and row0[2] == "Part Temperature (C)"
             and row0[4] == "Time Unix (ms):"
             and row0[6] == "X values (mm):"
-
             and row1[0] == "A Axis Angle (deg):"
             and row1[2] == "Z values (mm):"
         ):
             return "ue-csv-0.1.1"
-    
 
     except (OSError, UnicodeDecodeError):
         return None
@@ -120,7 +120,24 @@ def get_load_stroke_file_version(file):
         "Static Side Tool Number",
         "Hit Number",
     ]
-
+    EXPECTED_HEADERS_V0_1_1 = [
+        "Time Unix (ms)",
+        "Position (mm)",
+        "Force (kN)",
+        "Live Velocity (mm/s)",
+        "Thermal Cam Temp (c)",
+        "Pyrometer Temp (c)",
+        "Press Target Position (mm)",
+        "Press Target Velocity (mm/s)",
+        "X",
+        "Y",
+        "Z",
+        "A",
+        "X pos referenced to target part butt",
+        "Ram Side Tool Number",
+        "Static Side Tool Number",
+        "Hit Number",
+    ]
     if not str(file).endswith(".csv"):
         return None
 
@@ -133,6 +150,8 @@ def get_load_stroke_file_version(file):
         # 3. Compare the lists
         if headers == EXPECTED_HEADERS_V0_1_0:
             return "LS-csv-0.1.0"
+        elif headers == EXPECTED_HEADERS_V0_1_1:
+            return "LS-csv-0.1.1"
 
     except (OSError, UnicodeDecodeError):
         return None
@@ -162,6 +181,7 @@ def parse_ue_csv_0_1_0(file):
 
     return df
 
+
 def parse_ue_csv_0_1_1(file):
     df = pd.read_csv(file, header=None)
 
@@ -181,10 +201,11 @@ def parse_ue_csv_0_1_1(file):
         "x_mm": x_values,
         "z_mm": z_values,
         "a_axis_deg": a_axis_angles,
-        "scan_offset_x": scan_offset_x
+        "scan_offset_x": scan_offset_x,
     })
-    print(df)
+    # print(df)
     return df
+
 
 def parse_ls_csv_0_1_0(file):
     """

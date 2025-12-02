@@ -60,6 +60,8 @@ def process_raw_directory(raw_path, save_path):
                     if sub_item.is_dir() and TP_REGEX.search(sub_item.name):
                         process_TP_directory(sub_item, h5_conn, sqlite_conn)
 
+    rebuild_h5_global_keys(h5_conn)
+
     h5_conn.close()
     sqlite_conn.close()
 
@@ -135,3 +137,33 @@ def discover_and_group_files(path):
                     hits_data[hit_num]["load_stroke"] = item
 
     return global_files, hits_data
+
+
+def rebuild_h5_global_keys(h5_path):
+    """
+    Run through the h5 file and build "pointers" / global indices for pytorch dataloader such that we can easily call
+    dataloader_object[100] and it pulls the correct load/stroke, thermal frames, and meshes
+    """
+
+    hit_pattern = re.compile(r"^H\d{4}$")
+    found_paths = []
+
+    def visitor_func(name, node):
+        if isinstance(node, h5py.Group):
+            folder_name = name.split("/")[-1]
+            if hit_pattern.match(folder_name):
+                found_paths.append(name)
+
+    with h5py.File(h5_path, "a") as f:
+        f.visititems(visitor_func)
+        count = len(found_paths)
+
+        if "global_keyset" in f:
+            del f["global_keyset"]
+
+        dtype = h5py.special_dtype(vlen=str)
+        dset = f.create_dataset("global_keyset", shape=(count,), maxshape=(None,), dtype=dtype)
+        dset[:] = sorted(found_paths)
+
+    print(found_paths)
+    print(count)

@@ -3,13 +3,15 @@ import torch
 
 
 class ForgeDataset(torch.utils.data.Dataset):
+    """
+    Pytorch data primitive to easily access Agility Forge data.
+    """
+
     def __init__(self, *args, **kwargs):
         self.h5_file = args[0]
-        # pattern = re.compile(r"^sample_\d{4}-\d{2}-\d{2}_[^_]+_\d{4}$")
-        # self.save_meshes = kwargs.get('save_meshes', False)
-        # self.save_path_base = kwargs.get('save_path', './data/inspection')
-        # with h5py.File(self.h5_file, 'r') as f:
-        #     self.sample_keys = [k for k in f if pattern.match(k)]
+
+        with h5py.File(self.h5_file, "r") as f:
+            self.sample_keys = f["global_keyset"].asstr()[:]
 
     def __len__(self):
         return len(self.sample_keys)
