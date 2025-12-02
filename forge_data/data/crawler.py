@@ -4,7 +4,6 @@ TODO
 
 import datetime
 import re
-import sqlite3
 from collections import defaultdict
 
 import h5py
@@ -14,6 +13,7 @@ from forge_data.ue.api import mesh_from_dataframe
 
 HIT_NUM_REGEX = re.compile(r"Hitpoint (\d+)")
 TP_REGEX = re.compile(r"TP(\d+)")
+TEMP_FILE_REGEX = re.compile(r".*t.*\.h5$", re.IGNORECASE)
 
 
 def process_raw_directory(raw_path, save_path):
@@ -22,51 +22,33 @@ def process_raw_directory(raw_path, save_path):
     """
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     h5_path = save_path / f"{timestamp}.h5"
-    sqlite_path = save_path / f"{timestamp}.sqlite"
 
     h5_conn = h5py.File(h5_path, "a")
-    sqlite_conn = sqlite3.connect(sqlite_path)
-
-    cursor = sqlite_conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS obj_files (
-            path TEXT PRIMARY KEY,
-            data BLOB
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS mesh_files (
-            path TEXT PRIMARY KEY,
-            vertices BLOB,
-            faces BLOB
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS load_stroke_data (
-            path TEXT PRIMARY KEY,
-            data BLOB
-        )
-    """)
-
-    sqlite_conn.commit()
 
     for item in raw_path.iterdir():
         if item.is_dir():
             if TP_REGEX.search(item.name):
-                process_TP_directory(item, h5_conn, sqlite_conn)
+                process_TP_directory(item, h5_conn)
             else:
                 # Check one level deeper for TP directories
                 for sub_item in item.iterdir():
                     if sub_item.is_dir() and TP_REGEX.search(sub_item.name):
-                        process_TP_directory(sub_item, h5_conn, sqlite_conn)
+                        process_TP_directory(sub_item, h5_conn)
 
-    rebuild_h5_global_keys(h5_conn)
+                    elif TEMP_FILE_REGEX.search(sub_item.name):
+                        # print(f"Found temperature file: {sub_item.name}")
+                        T_data_key = str(sub_item.relative_to(raw_path)).replace(".h5", "")
+                        try:
+                            with h5py.File(sub_item, "r") as source_h5:
+                                h5_conn.copy(source_h5["/"], T_data_key)
+                        except OSError:
+                            print(f"Could not open or read {sub_item}")
 
     h5_conn.close()
-    sqlite_conn.close()
+    rebuild_h5_global_keys(h5_path)
 
 
-def process_TP_directory(path, h5_conn, sqlite_conn):
+def process_TP_directory(path, h5_conn):
     """ """
     global_files, hits_data = discover_and_group_files(path)
 
@@ -77,10 +59,6 @@ def process_TP_directory(path, h5_conn, sqlite_conn):
             db_key = f"{global_file.parent.parent.name}/{global_file.parent.name}/{global_file.name}"
             h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
             h5_conn.create_dataset(f"{db_key}/faces", data=faces)
-            sqlite_conn.execute(
-                "INSERT OR REPLACE INTO mesh_files (path, vertices, faces) VALUES (?, ?, ?)",
-                (db_key, vertices.tobytes(), faces.tobytes()),
-            )
 
     for hit_num, hit_files in hits_data.items():
         db_keybase = f"{path.parent.name}/{path.name}/H{hit_num:04}"
@@ -92,23 +70,14 @@ def process_TP_directory(path, h5_conn, sqlite_conn):
             db_key = db_keybase + "/reconstructed_mesh"
             h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
             h5_conn.create_dataset(f"{db_key}/faces", data=faces)
-            sqlite_conn.execute(
-                "INSERT OR REPLACE INTO mesh_files (path, vertices, faces) VALUES (?, ?, ?)",
-                (db_key, vertices.tobytes(), faces.tobytes()),
-            )
 
         if "load_stroke" in hit_files:
             ls_file = hit_files["load_stroke"]
             df = process_load_stroke_file(ls_file)
             db_key = db_keybase + "/load_stroke"
             h5_conn.create_dataset(db_key, data=df.to_records(index=False))
-            sqlite_conn.execute(
-                "INSERT OR REPLACE INTO load_stroke_data (path, data) VALUES (?, ?)",
-                (db_key, df.to_json().encode("utf-8")),
-            )
 
     h5_conn.flush()
-    sqlite_conn.commit()
 
 
 def discover_and_group_files(path):
@@ -154,7 +123,7 @@ def rebuild_h5_global_keys(h5_path):
             if hit_pattern.match(folder_name):
                 found_paths.append(name)
 
-    with h5py.File(h5_path, "a") as f:
+    with h5py.File(str(h5_path), "a") as f:
         f.visititems(visitor_func)
         count = len(found_paths)
 

@@ -135,7 +135,7 @@ hdf5view -f ./data/processed/FILENAME.h5
 * Pull action out of load-stroke
 * ~~Have AgF dataset save zero to calibrate load-stroke into mesh reference frame~~
 * Do we have ForgeDataset return action sequences if there isn't a geometry scan every hit?
-* SQLite is not done yet. H5 is much easier. rm sqlite?
+* ~~SQLite is not done yet. H5 is much easier. rm sqlite?~~
 
 
 ---

@@ -1,5 +1,5 @@
 """
-Parses through a directory and generates an H5 / sqlite3 database.
+TODO
 """
 
 import argparse
@@ -62,7 +62,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw-data-path", type=Path, default=default_raw_path)
     parser.add_argument("--save-path", type=Path, default=default_save_path)
-    parser.add_argument("--format", type=str, choices=["h5", "sqlite"], default="h5")
     args = parser.parse_args()
     os.makedirs(args.save_path, exist_ok=True)
 

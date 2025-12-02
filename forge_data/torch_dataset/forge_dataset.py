@@ -24,7 +24,7 @@ class ForgeDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.global_keyset)
 
-    def  __getitem__(self, idx):
+    def __getitem__(self, idx):
         """
         TODO
         """
@@ -33,7 +33,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         curr_path = self.global_keyset[idx]
         curr_group = f[curr_path]
 
-        ls_data = curr_group['load_stroke'][:]
+        ls_data = curr_group["load_stroke"][:]
         # print(ls_data)
         action = self._get_action_from_load_stroke(ls_data)
 
@@ -51,7 +51,7 @@ class ForgeDataset(torch.utils.data.Dataset):
 
     def _get_h5_file(self):
         if self.h5_file is None:
-            self.h5_file = h5py.File(self.h5_path, 'r')
+            self.h5_file = h5py.File(self.h5_path, "r")
         return self.h5_file
 
     def _get_action_from_load_stroke(ls):
@@ -59,7 +59,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         Pull action out of load stroke data
         TODO
         """
-        return np.array(.1, 90, 0.01)
+        return np.array(0.1, 90, 0.01)
 
     def plot_state_action_(self, idx):
         """

@@ -35,7 +35,7 @@ class Recon:
         self.i = 0
         self.j = 0
 
-    @timeit
+    # @timeit
     def reconstruct_pcd_axis_angle(self, V, *args, **kwargs):
         self.j += 1
 
@@ -116,7 +116,7 @@ class Recon:
             )
             self.scanner_data_list.append(scanner_data)
 
-    @timeit
+    # @timeit
     def process(self):
         """
         TODO
@@ -209,7 +209,7 @@ class Recon:
 
         return pcd
 
-    @timeit
+    # @timeit
     def pcd_to_mesh(self, pcd0):
         """
         TODO
@@ -244,7 +244,7 @@ class Recon:
 
         return mesh
 
-    @timeit
+    # @timeit
     def call_o3d(self, pcd):
         mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
         mesh = mesh.remove_duplicated_vertices()
