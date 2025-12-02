@@ -60,3 +60,11 @@ class ForgeDataset(torch.utils.data.Dataset):
         TODO
         """
         return np.array(.1, 90, 0.01)
+
+    def plot_state_action_(self, idx):
+        """
+        TODO
+            Generate a plot of this state-action, show hit vector on resulting mesh.
+        """
+        # datapoint = self[idx]
+        pass
