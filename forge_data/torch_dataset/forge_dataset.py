@@ -68,23 +68,21 @@ class ForgeDataset(torch.utils.data.Dataset):
             parent_group = f[parent_path_]
             obj_key = None
             for key in parent_group:
-                if key.endswith('.obj'):
+                if key.endswith(".obj"):
                     obj_key = key
                     break
 
             if obj_key:
-                x_v = torch.from_numpy(parent_group[obj_key]['vertices'][:]).float()
-                x_f = torch.from_numpy(parent_group[obj_key]['faces'][:]).long()
+                xv = torch.from_numpy(parent_group[obj_key]["vertices"][:]).float()
+                xf = torch.from_numpy(parent_group[obj_key]["faces"][:]).long()
         else:
             curr_hit_num = int(folder_name[1:])
             prev_hit_name = f"H{curr_hit_num - 1:04d}"
             prev_path = f"{parent_path_}/{prev_hit_name}"
-
-            # Check if this previous hit actually exists in the file
-            if prev_path in f:
-                prev_group = f[prev_path]
-                x0_verts = torch.from_numpy(prev_group['reconstructed_mesh/vertices'][:]).float()
-                x0_faces = torch.from_numpy(prev_group['reconstructed_mesh/faces'][:]).long()
+            prev_group = f[prev_path]
+            xv = torch.from_numpy(prev_group["reconstructed_mesh/vertices"][:]).float()
+            xf = torch.from_numpy(prev_group["reconstructed_mesh/faces"][:]).long()
+        x = MeshData(vertices=xv, faces=xf)
 
         a_x = ls_data["X pos referenced to target part butt"][0]
         a_theta = ls_data["A"][0]
@@ -101,7 +99,7 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         # Get the max temperature of workpiece while the load is max
         idx_max_load = np.argmax(ls_data["Force (kN)"])
-        time_max_load = ls_data["Time Unix (ms)"][idx_max_load]/1000
+        time_max_load = ls_data["Time Unix (ms)"][idx_max_load] / 1000
 
         thermal_group = f[str(path_.parent.parent) + "/t"]
         thermal_timeline = np.array(thermal_group["time"])
@@ -112,13 +110,10 @@ class ForgeDataset(torch.utils.data.Dataset):
         mask = temperature > 700
         T_avg = torch.tensor(np.mean(temperature[mask]))
 
-
-
-
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
         return ForgeSample(
-            x=torch.zeros(1),
+            x=x,
             a=action,
             y=y,
             load=load,

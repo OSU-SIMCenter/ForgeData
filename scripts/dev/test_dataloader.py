@@ -5,8 +5,6 @@ Test key builder for h5
 import argparse
 from pathlib import Path
 
-import torch
-
 from forge_data.torch_dataset.forge_dataset import ForgeDataset
 
 script_dir = Path(__file__).resolve()
