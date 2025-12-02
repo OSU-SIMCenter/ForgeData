@@ -16,13 +16,13 @@ class ForgeSample(NamedTuple):
     TODO Docstring
     """
 
-    x: MeshData  # Current State (Mesh)
-    a: torch.Tensor  # Action (Hitpoint)
-    y: MeshData  # Next State (Mesh)
+    x: MeshData  # Current State (Mesh) [mm]
+    a: torch.Tensor  # Action (Hitpoint), (x-axis [mm], theta [deg], depth [mm] (this is radius of hitpoint))
+    y: MeshData  # Next State (Mesh) [mm]
     load: torch.Tensor  # Press load [kN]
     stroke: torch.Tensor  # Press position [mm]
-    T_max: torch.Tensor  # Max temperature of workpiece during action
-    T_avg: torch.Tensor  # Mean temperature of workpiece during action
+    T_max: torch.Tensor  # Max temperature of workpiece during action [degC]
+    T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
     path: str  # Metadata (Debug path)
 
 
@@ -99,7 +99,21 @@ class ForgeDataset(torch.utils.data.Dataset):
         load = torch.from_numpy(ls_data["Force (kN)"])
         stroke = torch.from_numpy(ls_data["Position (mm)"])
 
-        
+        # Get the max temperature of workpiece while the load is max
+        idx_max_load = np.argmax(ls_data["Force (kN)"])
+        time_max_load = ls_data["Time Unix (ms)"][idx_max_load]/1000
+
+        thermal_group = f[str(path_.parent.parent) + "/t"]
+        thermal_timeline = np.array(thermal_group["time"])
+        idx_closest = np.argmin(np.abs(thermal_timeline - time_max_load))
+        thermal_frame = np.array(thermal_group["frames"][idx_closest])
+        temperature = thermal_frame.astype(np.float32) / 10.0 - 100.0
+        T_max = torch.tensor(np.max(temperature))
+        mask = temperature > 700
+        T_avg = torch.tensor(np.mean(temperature[mask]))
+
+
+
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -109,8 +123,8 @@ class ForgeDataset(torch.utils.data.Dataset):
             y=y,
             load=load,
             stroke=stroke,
-            T_max=torch.zeros(1),
-            T_avg=torch.zeros(1),
+            T_max=T_max,
+            T_avg=T_avg,
             path=curr_path,
         )
 
@@ -135,6 +149,9 @@ class ForgeDataset(torch.utils.data.Dataset):
             Generate a plot of this state-action, show hit vector on resulting mesh.
         """
         # datapoint = self[idx]
+        pass
+
+    def plot_thermal_frame(self, idx):
         pass
 
     def __del__(self):

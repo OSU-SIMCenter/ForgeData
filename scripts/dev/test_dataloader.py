@@ -5,6 +5,8 @@ Test key builder for h5
 import argparse
 from pathlib import Path
 
+import torch
+
 from forge_data.torch_dataset.forge_dataset import ForgeDataset
 
 script_dir = Path(__file__).resolve()
@@ -25,8 +27,7 @@ def main():
     print(len(ds))
     ds.print_h5_structure()
 
-    x0 = ds[1]
-
+    x0 = ds[3]
     print(x0)
 
 
