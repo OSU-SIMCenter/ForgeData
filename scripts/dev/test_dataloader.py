@@ -25,7 +25,9 @@ def main():
     print(len(ds))
     ds.print_h5_structure()
 
-    ds[10]
+    x0 = ds[1]
+
+    print(x0)
 
 
 if __name__ == "__main__":

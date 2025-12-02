@@ -1,5 +1,5 @@
 """
-Test key builder for h5
+Open an h5 and stream the thermal video
 """
 
 import argparse
@@ -18,6 +18,7 @@ def get_thermal_datasets(h5_file):
     This will return the first temp dataset it finds.
     """
     data = []
+
     def visitor(name, node):
         print(name)
         if isinstance(node, h5py.Group) and (name.endswith("/t") or name == "t"):
@@ -28,6 +29,7 @@ def get_thermal_datasets(h5_file):
 
     h5_file.visititems(visitor)
     return data[0], data[1]
+
 
 def main():
     parser = argparse.ArgumentParser()

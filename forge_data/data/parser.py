@@ -20,7 +20,7 @@ def process_linescanner_file(file):
 
 def process_load_stroke_file(file):
     """
-    TODO
+    TODO Docstring
     """
 
     file_version = get_load_stroke_file_version(file)
@@ -208,9 +208,6 @@ def parse_ue_csv_0_1_1(file):
 
 
 def parse_ls_csv_0_1_0(file):
-    """
-    TODO
-    """
     # The first row is the header
     df = pd.read_csv(file, header=0)
     return df

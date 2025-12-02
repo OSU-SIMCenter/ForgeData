@@ -26,6 +26,8 @@ dependencies = [
     "tqdm",
     "scipy",
     "open3d",
+    "pyvista",
+    "opencv-python"
 ]
 
 [tool.setuptools]
