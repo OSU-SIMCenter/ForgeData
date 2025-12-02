@@ -23,6 +23,9 @@ def main():
     ds = ForgeDataset(h5_path)
 
     print(len(ds))
+    ds.print_h5_structure()
+
+    ds[10]
 
 
 if __name__ == "__main__":
