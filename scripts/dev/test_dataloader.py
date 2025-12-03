@@ -25,7 +25,7 @@ def main():
     print(len(ds))
     ds.print_h5_structure()
 
-    x0 = ds[3]
+    x0 = ds[6]
     print(x0)
 
 

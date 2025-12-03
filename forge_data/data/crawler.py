@@ -33,7 +33,7 @@ def process_raw_directory(raw_path, save_path):
 
                     elif TEMP_FILE_REGEX.search(sub_item.name):
                         # print(f"Found temperature file: {sub_item.name}")
-                        T_data_key = str(sub_item.relative_to(raw_path)).replace(".h5", "")
+                        T_data_key = sub_item.relative_to(raw_path).with_suffix("").as_posix()
                         try:
                             with h5py.File(sub_item, "r") as source_h5:
                                 h5_conn.copy(source_h5["/"], T_data_key)

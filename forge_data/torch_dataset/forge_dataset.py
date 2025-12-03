@@ -78,7 +78,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         else:
             curr_hit_num = int(folder_name[1:])
             prev_hit_name = f"H{curr_hit_num - 1:04d}"
-            prev_path = f"{parent_path_}/{prev_hit_name}"
+            prev_path = f"{parent_path_.as_posix()}/{prev_hit_name}"
             prev_group = f[prev_path]
             xv = torch.from_numpy(prev_group["reconstructed_mesh/vertices"][:]).float()
             xf = torch.from_numpy(prev_group["reconstructed_mesh/faces"][:]).long()
