@@ -1,8 +1,10 @@
 from pathlib import Path
 from typing import NamedTuple
 
+import cv2
 import h5py
 import numpy as np
+import pyvista as pv
 import torch
 
 
@@ -23,6 +25,7 @@ class ForgeSample(NamedTuple):
     stroke: torch.Tensor  # Press position [mm]
     T_max: torch.Tensor  # Max temperature of workpiece during action [degC]
     T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
+    T_frame: torch.Tensor  # Thermal image [C]
     path: str  # Metadata (Debug path)
 
 
@@ -65,7 +68,7 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         if folder_name == "H0000":
             # Pull the stock .obj file instead of the previous scan, there is no stock scan
-            parent_group = f[parent_path_]
+            parent_group = f[parent_path_.as_posix()]
             obj_key = None
             for key in parent_group:
                 if key.endswith(".obj"):
@@ -109,6 +112,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         T_max = torch.tensor(np.max(temperature))
         mask = temperature > 700
         T_avg = torch.tensor(np.mean(temperature[mask]))
+        T_frame = torch.from_numpy(temperature)
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -120,6 +124,7 @@ class ForgeDataset(torch.utils.data.Dataset):
             stroke=stroke,
             T_max=T_max,
             T_avg=T_avg,
+            T_frame=T_frame,
             path=curr_path,
         )
 
@@ -143,11 +148,93 @@ class ForgeDataset(torch.utils.data.Dataset):
         TODO
             Generate a plot of this state-action, show hit vector on resulting mesh.
         """
-        # datapoint = self[idx]
-        pass
+        def make_pv_mesh(verts, faces):
+                    """
+                    PyVista (VTK) expects faces to be a flat array where each face 
+                    is prefixed by the number of points (e.g., [3, v1, v2, v3, ...])
+                    """
+                    faces = faces.astype(np.int32)
+                    # If faces are (N, 3), pad them with the number 3
+                    if faces.ndim == 2 and faces.shape[1] == 3:
+                        padding = np.full((faces.shape[0], 1), 3)
+                        faces = np.hstack([padding, faces]).flatten()
+                    return pv.PolyData(verts, faces)
+        datapoint = self[idx]
+
+        xv = datapoint.x.vertices.cpu().numpy()
+        xf = datapoint.x.faces.cpu().numpy()
+        mesh_x = make_pv_mesh(xv, xf)
+
+        yv = datapoint.y.vertices.cpu().numpy()
+        yf = datapoint.y.faces.cpu().numpy()
+        mesh_y = make_pv_mesh(yv, yf)
+
+        action = datapoint.a.cpu().numpy()
+        x_pos = action[0] + 57.32  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
+        theta = action[1] + 105 # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
+        hit_radius = action[2]
+
+        print(f"action tuple: {(x_pos, theta, hit_radius)}")
+
+        theta_rad = np.deg2rad(theta)
+        r = 20
+        y = r * np.cos(theta_rad)
+        z = r * np.sin(theta_rad)
+
+        start_point = np.array([x_pos, y, z])
+        direction = np.array([x_pos, 0, 0]) - start_point
+
+        # shaft_radius and tip_radius allow us to visualize the 'hit_radius'
+        arrow = pv.Arrow(
+            start=start_point,
+            direction=direction,
+            scale=10.0, # Length of arrow
+            shaft_radius=.01,
+            tip_radius=.05,
+            tip_length=0.25
+        )
+        a2s = np.array([start_point[0], -start_point[1], -start_point[2]])
+        a2d = np.array([x_pos, 0, 0]) - a2s
+        arrow2 = pv.Arrow(
+            start=a2s,
+            direction=a2d,
+            scale=10.0, # Length of arrow
+            shaft_radius=.01,
+            tip_radius=.05,
+            tip_length=0.25
+        )
+
+        pl = pv.Plotter()
+        pl.add_mesh(mesh_x, color="red", opacity=0.3, label="State X (Pre-hit)")
+        pl.add_mesh(mesh_y, color="lightblue", show_edges=True, label="State Y (Post-hit)")
+        pl.add_mesh(arrow, color="red", label="Action Vector")
+        pl.add_mesh(arrow2, color="red")
+        pl.show_grid(
+            grid='back',
+            location='outer',
+            color='lightgrey',
+            font_size=10
+        )
+        pl.add_axes()
+        # stats = (
+        #     f"Step: {idx}\n"
+        #     f"Load: {to_numpy(self.load):.2f} kN\n"
+        #     f"Stroke: {to_numpy(self.stroke):.2f} mm\n"
+        #     f"Max Temp: {to_numpy(self.T_max):.1f} C"
+        # )
+        # pl.add_text(stats, position='upper_left', font_size=10, color='black')
+        pl.set_background('white')
+        pl.show(title=f"Forge Sample {idx}")
+
 
     def plot_thermal_frame(self, idx):
-        pass
+        datapoint = self[idx]
+        T_frame = datapoint.T_frame.numpy()
+        vis = cv2.normalize(T_frame, None, 0, 255, cv2.NORM_MINMAX)
+        vis = vis.astype(np.uint8)
+        colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+        cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
+        cv2.waitKey(0)
 
     def __del__(self):
         """

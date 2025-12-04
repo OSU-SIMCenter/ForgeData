@@ -22,11 +22,22 @@ def main():
     h5_path = Path(args.h5_path)
     ds = ForgeDataset(h5_path)
 
-    print(len(ds))
-    ds.print_h5_structure()
+    # print(len(ds))
+    # ds.print_h5_structure()
 
-    x0 = ds[6]
-    print(x0)
+    # x0 = ds[6]
+    # print(x0)
+
+    # Show a thermal snapshot for every action in the database
+    # for i in range(len(ds)):
+    #     ds.plot_thermal_frame(i)
+
+    ds.plot_state_action_(4)
+    # Show meshes for every action in the database
+    for i in range(len(ds)):
+        print(i)
+        ds.plot_state_action_(i)
+
 
 
 if __name__ == "__main__":
