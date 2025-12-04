@@ -184,7 +184,6 @@ class ForgeDataset(torch.utils.data.Dataset):
         start_point = np.array([x_pos, y, z])
         direction = np.array([x_pos, 0, 0]) - start_point
 
-        # shaft_radius and tip_radius allow us to visualize the 'hit_radius'
         arrow = pv.Arrow(
             start=start_point,
             direction=direction,
@@ -216,13 +215,6 @@ class ForgeDataset(torch.utils.data.Dataset):
             font_size=10
         )
         pl.add_axes()
-        # stats = (
-        #     f"Step: {idx}\n"
-        #     f"Load: {to_numpy(self.load):.2f} kN\n"
-        #     f"Stroke: {to_numpy(self.stroke):.2f} mm\n"
-        #     f"Max Temp: {to_numpy(self.T_max):.1f} C"
-        # )
-        # pl.add_text(stats, position='upper_left', font_size=10, color='black')
         pl.set_background('white')
         pl.show(title=f"Forge Sample {idx}")
 
