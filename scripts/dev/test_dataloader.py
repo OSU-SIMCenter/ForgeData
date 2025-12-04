@@ -8,7 +8,7 @@ from pathlib import Path
 from forge_data.torch_dataset.forge_dataset import ForgeDataset
 
 script_dir = Path(__file__).resolve()
-project_root = script_dir.parent.parent
+project_root = script_dir.parent.parent.parent
 
 
 def main():
@@ -22,22 +22,28 @@ def main():
     h5_path = Path(args.h5_path)
     ds = ForgeDataset(h5_path)
 
-    # print(len(ds))
+    print(f"There are {len(ds)} data points in the database.")
     # ds.print_h5_structure()
 
-    # x0 = ds[6]
+    example_datapoint = ds[99]
     # print(x0)
 
+    ds.plot_state_action(10)
+    # Show meshes for every action in the database
+    # for i in range(len(ds)):
+    #     print(i)
+        # ds.plot_state_action(10)
+
+    ds.plot_load_stroke(10)
+
+    ds.plot_thermal_frame(10)
     # Show a thermal snapshot for every action in the database
     # for i in range(len(ds)):
-    #     ds.plot_thermal_frame(i)
+        # ds.plot_thermal_frame(i)
 
-    ds.plot_state_action_(4)
-    # Show meshes for every action in the database
-    for i in range(len(ds)):
-        print(i)
-        ds.plot_state_action_(i)
-
+    T_path = project_root / "data"
+    T_path.mkdir(parents=True, exist_ok=True)
+    ds.save_thermal_video(T_path / "Temperature_snaps.mp4")
 
 
 if __name__ == "__main__":

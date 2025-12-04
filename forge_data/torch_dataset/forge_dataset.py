@@ -3,6 +3,7 @@ from typing import NamedTuple
 
 import cv2
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
 import torch
@@ -19,13 +20,14 @@ class ForgeSample(NamedTuple):
     """
 
     x: MeshData  # Current State (Mesh) [mm]
-    a: torch.Tensor  # Action (Hitpoint), (x-axis [mm], theta [deg], depth [mm] (this is radius of hitpoint))
+    a: torch.Tensor  # Action, (x-axis [mm], theta [deg], radius [mm])
     y: MeshData  # Next State (Mesh) [mm]
+    t: torch.Tensor  # time for load/stroke data [s]
     load: torch.Tensor  # Press load [kN]
     stroke: torch.Tensor  # Press position [mm]
     T_max: torch.Tensor  # Max temperature of workpiece during action [degC]
     T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
-    T_frame: torch.Tensor  # Thermal image [C]
+    T_frame: torch.Tensor  # Thermal image [degC]
     path: str  # Metadata (Debug path)
 
 
@@ -97,6 +99,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         yf = torch.from_numpy(np.array(curr_group["reconstructed_mesh/faces"], dtype=np.int32))
         y = MeshData(vertices=yv, faces=yf)
 
+        time = torch.from_numpy(ls_data["Time Unix (ms)"] / 1000)
         load = torch.from_numpy(ls_data["Force (kN)"])
         stroke = torch.from_numpy(ls_data["Position (mm)"])
 
@@ -120,6 +123,7 @@ class ForgeDataset(torch.utils.data.Dataset):
             x=x,
             a=action,
             y=y,
+            t=time,
             load=load,
             stroke=stroke,
             T_max=T_max,
@@ -129,36 +133,33 @@ class ForgeDataset(torch.utils.data.Dataset):
         )
 
     def print_h5_structure(self):
-        with h5py.File(self.h5_path, "r") as f:
+        f = self._get_h5_file()
 
-            def print_attrs(name, obj):
-                print(name)
-                for key, val in obj.attrs.items():
-                    print(f"    {key}: {val}")
+        def print_attrs(name, obj):
+            print(name)
+            for key, val in obj.attrs.items():
+                print(f"    {key}: {val}")
 
-            f.visititems(print_attrs)
+        f.visititems(print_attrs)
 
     def _get_h5_file(self):
         if self.h5_file is None:
             self.h5_file = h5py.File(self.h5_path, "r")
         return self.h5_file
 
-    def plot_state_action_(self, idx):
+    def plot_state_action(self, idx):
         """
         TODO
             Generate a plot of this state-action, show hit vector on resulting mesh.
         """
+
         def make_pv_mesh(verts, faces):
-                    """
-                    PyVista (VTK) expects faces to be a flat array where each face 
-                    is prefixed by the number of points (e.g., [3, v1, v2, v3, ...])
-                    """
-                    faces = faces.astype(np.int32)
-                    # If faces are (N, 3), pad them with the number 3
-                    if faces.ndim == 2 and faces.shape[1] == 3:
-                        padding = np.full((faces.shape[0], 1), 3)
-                        faces = np.hstack([padding, faces]).flatten()
-                    return pv.PolyData(verts, faces)
+            faces = faces.astype(np.int32)
+            if faces.ndim == 2 and faces.shape[1] == 3:
+                padding = np.full((faces.shape[0], 1), 3)
+                faces = np.hstack([padding, faces]).flatten()
+            return pv.PolyData(verts, faces)
+
         datapoint = self[idx]
 
         xv = datapoint.x.vertices.cpu().numpy()
@@ -171,7 +172,7 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         action = datapoint.a.cpu().numpy()
         x_pos = action[0] + 57.32  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
-        theta = action[1] + 105 # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
+        theta = action[1] + 105  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
         hit_radius = action[2]
 
         print(f"action tuple: {(x_pos, theta, hit_radius)}")
@@ -187,20 +188,20 @@ class ForgeDataset(torch.utils.data.Dataset):
         arrow = pv.Arrow(
             start=start_point,
             direction=direction,
-            scale=10.0, # Length of arrow
-            shaft_radius=.01,
-            tip_radius=.05,
-            tip_length=0.25
+            scale=10.0,  # Length of arrow
+            shaft_radius=0.01,
+            tip_radius=0.05,
+            tip_length=0.25,
         )
         a2s = np.array([start_point[0], -start_point[1], -start_point[2]])
         a2d = np.array([x_pos, 0, 0]) - a2s
         arrow2 = pv.Arrow(
             start=a2s,
             direction=a2d,
-            scale=10.0, # Length of arrow
-            shaft_radius=.01,
-            tip_radius=.05,
-            tip_length=0.25
+            scale=10.0,  # Length of arrow
+            shaft_radius=0.01,
+            tip_radius=0.05,
+            tip_length=0.25,
         )
 
         pl = pv.Plotter()
@@ -208,16 +209,35 @@ class ForgeDataset(torch.utils.data.Dataset):
         pl.add_mesh(mesh_y, color="lightblue", show_edges=True, label="State Y (Post-hit)")
         pl.add_mesh(arrow, color="red", label="Action Vector")
         pl.add_mesh(arrow2, color="red")
-        pl.show_grid(
-            grid='back',
-            location='outer',
-            color='lightgrey',
-            font_size=10
-        )
+        pl.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
         pl.add_axes()
-        pl.set_background('white')
+        pl.set_background("white")
         pl.show(title=f"Forge Sample {idx}")
 
+    def plot_load_stroke(self, idx):
+        datapoint = self[idx]
+
+        t = datapoint.t.cpu().numpy()
+        t = t - np.min(t)
+        load = datapoint.load.cpu().numpy()
+        stroke = datapoint.stroke.cpu().numpy()
+
+        _, ax1 = plt.subplots(figsize=(10, 6))
+        ax1.set_xlabel("Time [s]", fontsize=12)
+        ax1.set_ylabel("Load [kN]", fontsize=12)
+        line1 = ax1.plot(t, load, color="tab:blue", linewidth=2, label="Load")
+        ax1.tick_params(axis="y")
+        ax1.grid(True, linestyle="--", alpha=0.7)
+        ax2 = ax1.twinx()
+        ax2.set_ylabel("Stroke [mm]", fontsize=12)
+        line2 = ax2.plot(t, stroke, color="tab:red", linewidth=2, linestyle="--", label="Stroke")
+        ax2.tick_params(axis="y")
+        lines = line1 + line2
+        labels = [ln.get_label() for ln in lines]
+        ax1.legend(lines, labels, loc="upper right")
+        plt.title("Load & Stroke vs. Time", fontsize=14)
+        plt.tight_layout()
+        plt.show()
 
     def plot_thermal_frame(self, idx):
         datapoint = self[idx]
@@ -227,6 +247,24 @@ class ForgeDataset(torch.utils.data.Dataset):
         colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
         cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
         cv2.waitKey(0)
+
+    def save_thermal_video(self, path):
+        fps = 8
+        first_frame = self[0].T_frame.numpy()
+        h, w = first_frame.shape
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(str(path), fourcc, fps, (w, h))
+
+        for i in range(len(self)):
+            datapoint = self[i]
+            T_frame = datapoint.T_frame.numpy()
+            vis = cv2.normalize(T_frame, None, 0, 255, cv2.NORM_MINMAX)
+            vis = vis.astype(np.uint8)
+            colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+            out.write(colorized)
+            if i % (len(self)//10) == 0:
+                print(f"Processed frame {i}/{len(self)}")
+        out.release()
 
     def __del__(self):
         """
