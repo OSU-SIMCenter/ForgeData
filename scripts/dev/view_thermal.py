@@ -49,13 +49,13 @@ def main():
         stride = 20
 
         h, w = frames.shape[1:]
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(str(h5_path.with_suffix(".mp4")), fourcc, fps, (w, h))
 
         print(f"Camera resolution: {frames.shape[1:]}")
 
         for i in range(0, len(frames), stride):
-            frame_u16 = frames[i] 
+            frame_u16 = frames[i]
             time_instance = time[i]
 
             frame_celsius = frame_u16.astype(np.float32) / 10.0 - 100.0
@@ -70,7 +70,7 @@ def main():
             cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
 
             key = cv2.waitKey(delay_ms)
-            if key == 27 or key == 81 or key == 113: 
+            if key == 27 or key == 81 or key == 113:
                 break
 
         cv2.destroyAllWindows()

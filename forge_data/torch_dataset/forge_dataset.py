@@ -252,7 +252,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         fps = 8
         first_frame = self[0].T_frame.numpy()
         h, w = first_frame.shape
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(str(path), fourcc, fps, (w, h))
 
         for i in range(len(self)):
@@ -262,7 +262,7 @@ class ForgeDataset(torch.utils.data.Dataset):
             vis = vis.astype(np.uint8)
             colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
             out.write(colorized)
-            if i % (len(self)//10) == 0:
+            if i % (len(self) // 10) == 0:
                 print(f"Processed frame {i}/{len(self)}")
         out.release()
 

@@ -32,14 +32,14 @@ def main():
     # Show meshes for every action in the database
     # for i in range(len(ds)):
     #     print(i)
-        # ds.plot_state_action(10)
+    # ds.plot_state_action(10)
 
     ds.plot_load_stroke(10)
 
     ds.plot_thermal_frame(10)
     # Show a thermal snapshot for every action in the database
     # for i in range(len(ds)):
-        # ds.plot_thermal_frame(i)
+    # ds.plot_thermal_frame(i)
 
     T_path = project_root / "data"
     T_path.mkdir(parents=True, exist_ok=True)
