@@ -68,6 +68,8 @@ class ForgeDataset(torch.utils.data.Dataset):
         folder_name = path_.name
         parent_path_ = path_.parent
 
+        xv = None
+        xf = None
         if folder_name == "H0000":
             # Pull the stock .obj file instead of the previous scan, there is no stock scan
             parent_group = f[parent_path_.as_posix()]
@@ -87,6 +89,8 @@ class ForgeDataset(torch.utils.data.Dataset):
             prev_group = f[prev_path]
             xv = torch.from_numpy(prev_group["reconstructed_mesh/vertices"][:]).float()
             xf = torch.from_numpy(prev_group["reconstructed_mesh/faces"][:]).long()
+        if xv is None or xf is None:
+            x = None
         x = MeshData(vertices=xv, faces=xf)
 
         a_x = ls_data["X pos referenced to target part butt"][0]
@@ -95,9 +99,12 @@ class ForgeDataset(torch.utils.data.Dataset):
         action = np.array([a_x, a_theta, a_depth], dtype=np.float64)
         action = torch.from_numpy(action)
 
-        yv = torch.from_numpy(np.array(curr_group["reconstructed_mesh/vertices"], dtype=np.float64))
-        yf = torch.from_numpy(np.array(curr_group["reconstructed_mesh/faces"], dtype=np.int32))
-        y = MeshData(vertices=yv, faces=yf)
+        try:
+            yv = torch.from_numpy(np.array(curr_group["reconstructed_mesh/vertices"], dtype=np.float64))
+            yf = torch.from_numpy(np.array(curr_group["reconstructed_mesh/faces"], dtype=np.int32))
+            y = MeshData(vertices=yv, faces=yf)
+        except:
+            y = None
 
         time = torch.from_numpy(ls_data["Time Unix (ms)"] / 1000)
         load = torch.from_numpy(ls_data["Force (kN)"])
@@ -107,15 +114,21 @@ class ForgeDataset(torch.utils.data.Dataset):
         idx_max_load = np.argmax(ls_data["Force (kN)"])
         time_max_load = ls_data["Time Unix (ms)"][idx_max_load] / 1000
 
-        thermal_group = f[str(path_.parent.parent) + "/t"]
-        thermal_timeline = np.array(thermal_group["time"])
-        idx_closest = np.argmin(np.abs(thermal_timeline - time_max_load))
-        thermal_frame = np.array(thermal_group["frames"][idx_closest])
-        temperature = thermal_frame.astype(np.float32) / 10.0 - 100.0
-        T_max = torch.tensor(np.max(temperature))
-        mask = temperature > 700
-        T_avg = torch.tensor(np.mean(temperature[mask]))
-        T_frame = torch.from_numpy(temperature)
+        try:
+            thermal_group = f[str(path_.parent.parent) + "/t"]
+            thermal_timeline = np.array(thermal_group["time"])
+            idx_closest = np.argmin(np.abs(thermal_timeline - time_max_load))
+            thermal_frame = np.array(thermal_group["frames"][idx_closest])
+            temperature = thermal_frame.astype(np.float32) / 10.0 - 100.0
+            T_max = torch.tensor(np.max(temperature))
+            mask = temperature > 700
+            T_avg = torch.tensor(np.mean(temperature[mask]))
+            T_frame = torch.from_numpy(temperature)
+        except:
+            T_max = None
+            T_avg = None
+            T_frame = None
+
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
