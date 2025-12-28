@@ -3,6 +3,9 @@ from typing import NamedTuple
 
 import cv2
 import h5py
+import matplotlib
+
+matplotlib.use("TkAgg")  # OpenCV busted default, this fixes error in plot_load_stroke on Ubuntu
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
@@ -28,6 +31,7 @@ class ForgeSample(NamedTuple):
     T_max: torch.Tensor  # Max temperature of workpiece during action [degC]
     T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
     T_frame: torch.Tensor  # Thermal image [degC]
+    T_field: torch.Tensor  # Temperature values of each node in mesh x [degC] n_nodes x 1
     path: str  # Metadata (Debug path)
 
 
@@ -103,7 +107,8 @@ class ForgeDataset(torch.utils.data.Dataset):
             yv = torch.from_numpy(np.array(curr_group["reconstructed_mesh/vertices"], dtype=np.float64))
             yf = torch.from_numpy(np.array(curr_group["reconstructed_mesh/faces"], dtype=np.int32))
             y = MeshData(vertices=yv, faces=yf)
-        except:
+        except Exception:
+            # Missing or malformed reconstructed_mesh
             y = None
 
         time = torch.from_numpy(ls_data["Time Unix (ms)"] / 1000)
@@ -124,11 +129,19 @@ class ForgeDataset(torch.utils.data.Dataset):
             mask = temperature > 700
             T_avg = torch.tensor(np.mean(temperature[mask]))
             T_frame = torch.from_numpy(temperature)
-        except:
+        except Exception:
+            # No thermal frames available for this datapoint
             T_max = None
             T_avg = None
             T_frame = None
 
+        # If a good x mesh is available, and a thermal frame is available, output a temperature field over the nodes of
+        # x. This temperature field will assume uniform temperatures in the x direction.
+        if (T_frame is not None) and (x is not None):
+            # T_field=None
+            T_field = self._get_temperature_field(x, T_frame, a_x)
+        else:
+            T_field = None
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -142,6 +155,7 @@ class ForgeDataset(torch.utils.data.Dataset):
             T_max=T_max,
             T_avg=T_avg,
             T_frame=T_frame,
+            T_field=T_field,
             path=curr_path,
         )
 
@@ -160,10 +174,13 @@ class ForgeDataset(torch.utils.data.Dataset):
             self.h5_file = h5py.File(self.h5_path, "r")
         return self.h5_file
 
-    def plot_state_action(self, idx):
+    def plot_state_action(self, idx, return_image=False, window_size=(512, 512)):
         """
-        TODO
-            Generate a plot of this state-action, show hit vector on resulting mesh.
+        Generate plots of the pre- and post-hit meshes and action vectors.
+
+        If `return_image=True` this returns a tuple `(img_x, img_y)` where each is an RGB
+        uint8 numpy array with shape (H,W,3). Otherwise the function shows an interactive
+        plot (previous behavior) but without mesh edges.
         """
 
         def make_pv_mesh(verts, faces):
@@ -175,27 +192,31 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         datapoint = self[idx]
 
-        xv = datapoint.x.vertices.cpu().numpy()
-        xf = datapoint.x.faces.cpu().numpy()
-        mesh_x = make_pv_mesh(xv, xf)
-
-        yv = datapoint.y.vertices.cpu().numpy()
-        yf = datapoint.y.faces.cpu().numpy()
-        mesh_y = make_pv_mesh(yv, yf)
+        # Build meshes if available
+        mesh_x = None
+        mesh_y = None
+        if datapoint.x is not None:
+            xv = datapoint.x.vertices.cpu().numpy()
+            xf = datapoint.x.faces.cpu().numpy()
+            mesh_x = make_pv_mesh(xv, xf)
+        if datapoint.y is not None:
+            yv = datapoint.y.vertices.cpu().numpy()
+            yf = datapoint.y.faces.cpu().numpy()
+            mesh_y = make_pv_mesh(yv, yf)
 
         action = datapoint.a.cpu().numpy()
         x_pos = action[0] + 57.32  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
         theta = action[1] + 105  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
         hit_radius = action[2]
 
-        print(f"action tuple: {(x_pos, theta, hit_radius)}")
+        # print(f"action tuple: {(x_pos, theta, hit_radius)}")
 
         theta_rad = np.deg2rad(theta)
         r = 20
-        y = r * np.cos(theta_rad)
+        yy = r * np.cos(theta_rad)
         z = r * np.sin(theta_rad)
 
-        start_point = np.array([x_pos, y, z])
+        start_point = np.array([x_pos, yy, z])
         direction = np.array([x_pos, 0, 0]) - start_point
 
         arrow = pv.Arrow(
@@ -217,17 +238,49 @@ class ForgeDataset(torch.utils.data.Dataset):
             tip_length=0.25,
         )
 
-        pl = pv.Plotter()
-        pl.add_mesh(mesh_x, color="red", opacity=0.3, label="State X (Pre-hit)")
-        pl.add_mesh(mesh_y, color="lightblue", show_edges=True, label="State Y (Post-hit)")
-        pl.add_mesh(arrow, color="red", label="Action Vector")
-        pl.add_mesh(arrow2, color="red")
-        pl.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
-        pl.add_axes()
-        pl.set_background("white")
-        pl.show(title=f"Forge Sample {idx}")
+        if return_image:
+            # Render each mesh separately (no edges) and return RGB images
+            imgs = []
+            for mesh, color, opacity in [(mesh_x, "lightblue", 1.0), (mesh_y, "grey", 1.0)]:
+                if mesh is None:
+                    # create blank image
+                    h, w = window_size[1], window_size[0]
+                    imgs.append(np.zeros((h, w, 3), dtype=np.uint8))
+                    continue
+                pl = pv.Plotter(off_screen=True, window_size=window_size)
+                pl.add_mesh(mesh, color=color, opacity=opacity, show_edges=False)
+                pl.add_mesh(arrow, color="red")
+                pl.add_mesh(arrow2, color="red")
+                pl.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
+                pl.add_axes()
+                pl.camera_position = "iso"
+                pl.set_background("white")
+                img = pl.screenshot(return_img=True)
+                pl.close()
+                # Ensure RGB 3 channels
+                if img is None:
+                    imgs.append(np.zeros((window_size[1], window_size[0], 3), dtype=np.uint8))
+                else:
+                    if img.shape[2] == 4:
+                        img = img[..., :3]
+                    imgs.append(img.astype(np.uint8))
+            return tuple(imgs)
+        else:
+            # Interactive combined view (keeps old behavior minus edges)
+            pl = pv.Plotter()
+            if mesh_x is not None:
+                pl.add_mesh(mesh_x, color="red", opacity=0.3, show_edges=False, label="State X (Pre-hit)")
+            if mesh_y is not None:
+                pl.add_mesh(mesh_y, color="lightblue", show_edges=False, label="State Y (Post-hit)")
+            pl.add_mesh(arrow, color="red", label="Action Vector")
+            pl.add_mesh(arrow2, color="red")
+            pl.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
+            pl.add_axes()
+            pl.camera_position = "iso"
+            pl.set_background("white")
+            pl.show(title=f"Forge Sample {idx}")
 
-    def plot_load_stroke(self, idx):
+    def plot_load_stroke(self, idx, return_image=False, figsize=(6, 4)):
         datapoint = self[idx]
 
         t = datapoint.t.cpu().numpy()
@@ -235,7 +288,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         load = datapoint.load.cpu().numpy()
         stroke = datapoint.stroke.cpu().numpy()
 
-        _, ax1 = plt.subplots(figsize=(10, 6))
+        fig, ax1 = plt.subplots(figsize=figsize)
         ax1.set_xlabel("Time [s]", fontsize=12)
         ax1.set_ylabel("Load [kN]", fontsize=12)
         line1 = ax1.plot(t, load, color="tab:blue", linewidth=2, label="Load")
@@ -250,16 +303,100 @@ class ForgeDataset(torch.utils.data.Dataset):
         ax1.legend(lines, labels, loc="upper right")
         plt.title("Load & Stroke vs. Time", fontsize=14)
         plt.tight_layout()
-        plt.show()
 
-    def plot_thermal_frame(self, idx):
+        if return_image:
+            # Render figure to RGB numpy array
+            fig.canvas.draw()
+            rgba_buffer = fig.canvas.buffer_rgba()
+            img = np.asarray(rgba_buffer)[:, :, :3]
+            plt.close(fig)
+            return img
+        else:
+            plt.show()
+
+    def plot_thermal_frame(self, idx, return_image=False):
         datapoint = self[idx]
-        T_frame = datapoint.T_frame.numpy()
+        if datapoint.T_frame is None:
+            if return_image:
+                return np.zeros((256, 256, 3), dtype=np.uint8)
+            else:
+                print("No thermal frame available for this datapoint")
+                return
+
+        T_frame = datapoint.T_frame.cpu().numpy()
         vis = cv2.normalize(T_frame, None, 0, 255, cv2.NORM_MINMAX)
         vis = vis.astype(np.uint8)
         colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
-        cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
-        cv2.waitKey(0)
+        # Convert BGR->RGB for consistency
+        colorized_rgb = cv2.cvtColor(colorized, cv2.COLOR_BGR2RGB)
+
+        if return_image:
+            return colorized_rgb
+        else:
+            cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
+            cv2.waitKey(0)
+
+    def plot_temperature_field(self, idx, return_image=False, window_size=(512, 1024), clim=None):
+        """
+        Render mesh `x` colored by `T_field` (per-vertex temperature) and return an RGB image when
+        `return_image=True`. `window_size` is (width, height) to allow tall renders for RHS stitching.
+        """
+        datapoint = self[idx]
+
+        if datapoint.T_field is None or datapoint.x is None:
+            if return_image:
+                return np.zeros((window_size[1], window_size[0], 3), dtype=np.uint8)
+            else:
+                print("No temperature field available for this datapoint")
+                return
+
+        T_field = datapoint.T_field.cpu().numpy()
+        verts = datapoint.x.vertices.cpu().numpy()
+        faces = datapoint.x.faces.cpu().numpy()
+
+        # Convert faces to PyVista format
+        faces_arr = faces.astype(np.int32)
+        if faces_arr.ndim == 2 and faces_arr.shape[1] == 3:
+            padding = np.full((faces_arr.shape[0], 1), 3)
+            faces_arr = np.hstack([padding, faces_arr]).flatten()
+
+        pv_mesh = pv.PolyData(verts, faces_arr)
+        pv_mesh.point_data["Temperature [degC]"] = T_field
+
+        if clim is None:
+            valid = T_field[~np.isnan(T_field)] if np.any(~np.isnan(T_field)) else T_field
+            vmin = float(np.min(valid))
+            vmax = float(np.max(valid))
+            if np.isclose(vmin, vmax):
+                vmin -= 1.0
+                vmax += 1.0
+        else:
+            vmin, vmax = clim
+
+        if return_image:
+            pl = pv.Plotter(off_screen=True, window_size=window_size)
+            pl.add_mesh(pv_mesh, scalars="Temperature [degC]", cmap="jet", clim=[vmin, vmax], show_edges=False)
+            pl.add_scalar_bar(title="Temperature (°C)")
+            pl.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
+            pl.add_axes()
+            pl.set_background("white")
+            pl.camera_position = "iso"
+            img = pl.screenshot(return_img=True)
+            pl.close()
+            if img is None:
+                return np.zeros((window_size[1], window_size[0], 3), dtype=np.uint8)
+            if img.shape[2] == 4:
+                img = img[..., :3]
+            return img.astype(np.uint8)
+        else:
+            plotter = pv.Plotter()
+            plotter.add_mesh(pv_mesh, scalars="Temperature [degC]", cmap="jet", clim=[vmin, vmax], show_edges=False)
+            plotter.add_scalar_bar(title="Temperature (°C)")
+            plotter.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
+            plotter.add_axes()
+            plotter.set_background("white")
+            plotter.camera_position = "iso"
+            plotter.show()
 
     def save_thermal_video(self, path):
         fps = 8
@@ -278,6 +415,85 @@ class ForgeDataset(torch.utils.data.Dataset):
             if i % (len(self) // 10) == 0:
                 print(f"Processed frame {i}/{len(self)}")
         out.release()
+
+    def _get_temperature_field(self, x, thermal_frame, a_x):
+        """Maps thermal frame data to the mesh nodes, assuming uniform x-axis temperature.
+
+        Args:
+            x: The current workpiece mesh data containing vertices and faces.
+            thermal_frame: A 2D tensor representing the thermal image [degC].
+
+        Returns:
+            A tensor representing the temperature field mapped over the nodes of x.
+        """
+        vis_dbg = False
+
+        # Calibrate camera by hand, it's rigidly mounted
+        pixels_per_mm = (207-16)/50.8
+        mm_per_pixel = 1/pixels_per_mm
+
+        # Filter out cold background temperatures
+        threshold_temp = 800.0
+        thermal_workpiece = torch.where(thermal_frame > threshold_temp, thermal_frame, torch.tensor(float('nan')))
+        vis_np = thermal_workpiece.detach().cpu().numpy()
+        T_profile_1d = np.nanmean(vis_np, axis=1)
+        T_profile_1d[np.isnan(T_profile_1d)] = 800.0
+
+        if vis_dbg:
+            mask = ~np.isnan(vis_np)
+            vis_display = np.zeros_like(vis_np, dtype=np.uint8)
+            if np.any(mask):
+                valid_min = vis_np[mask].min()
+                valid_max = vis_np[mask].max()
+                vis_display[mask] = ((vis_np[mask] - valid_min) / (valid_max - valid_min + 1e-6) * 255).astype(np.uint8)
+            colorized = cv2.applyColorMap(vis_display, cv2.COLORMAP_JET)
+            colorized[~mask] = 0
+            cv2.imshow("Thermal Workpiece (NaN is Black)", colorized)
+            cv2.waitKey(0)
+
+            print(f"T_profile_1d.shape: {T_profile_1d.shape}")
+            plt.figure()
+            plt.plot(T_profile_1d)
+            plt.show()
+
+        # We know that x value on the mesh a_x is located at pixel y=128 in the thermal frame
+        reference_y = 128
+        num_pixels = T_profile_1d.shape[0]
+        pixel_indices = np.arange(num_pixels)
+        pixel_coords_mm = (pixel_indices - reference_y) * mm_per_pixel + a_x + 57.32
+        T_profile_1d = np.flip(T_profile_1d, axis=0)
+
+        mesh_points = x.vertices.cpu().numpy()
+        vertex_temps = np.full(len(mesh_points), 800.0)  # Default/Ambient temp
+        vertex_temps = np.interp(
+                        mesh_points[:, 0],
+                        pixel_coords_mm,
+                        T_profile_1d,
+                        # left=700.0,
+                        # right=700.0
+                    )
+
+        if vis_dbg:
+            faces = x.faces.cpu().numpy()
+            pv_faces = np.column_stack((np.full(len(faces), 3), faces)).flatten()
+            point_cloud = x.vertices.cpu().numpy()
+            pv_mesh = pv.PolyData(point_cloud, pv_faces)
+            pv_mesh.point_data["Temperature [degC]"] = vertex_temps
+            plotter = pv.Plotter()
+            plotter.add_mesh(
+                pv_mesh,
+                scalars="Temperature [degC]",
+                cmap="jet",
+                clim=[800, 1050],  # Based on your previous snippet
+                show_edges=False,
+            )
+            plotter.add_scalar_bar(title="Temperature (°C)")
+            plotter.show_grid(grid="back", location="outer", color="lightgrey", font_size=10)
+            plotter.add_axes()
+            plotter.set_background("white")
+            plotter.show()
+
+        return torch.from_numpy(vertex_temps)
 
     def __del__(self):
         """
