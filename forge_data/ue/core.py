@@ -50,7 +50,7 @@ class Recon:
 
         z = z - radial_offset
         for i in range(n_rotations):
-            rotation_vec = Rotation.from_rotvec(th[-i] * rotation_axis)
+            rotation_vec = Rotation.from_rotvec(-th[i] * rotation_axis)
             scan = np.stack((x[i], np.zeros_like(x[i]), z[i]), axis=1)
             mask = ~np.isnan(scan[:, 0]) & ~np.isnan(scan[:, 2])
             scan = scan[mask]

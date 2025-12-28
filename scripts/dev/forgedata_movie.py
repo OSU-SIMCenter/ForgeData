@@ -72,6 +72,38 @@ def main():
         # Now stitch the tall temperature-field image on the RHS of the combined image
         final = np.hstack([combined, img_temperature_field])
 
+        # Overlay datapoint path in top-left corner
+        try:
+            sample = ds[i]
+            path_text = str(sample.path)
+        except Exception:
+            path_text = f"idx:{i:06d}"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.0
+        thickness = 2
+        margin = 8
+        max_width = final.shape[1] - 2 * margin
+        (text_w, text_h), baseline = cv2.getTextSize(path_text, font, font_scale, thickness)
+        while text_w > max_width and font_scale > 0.4:
+            font_scale -= 0.1
+            (text_w, text_h), baseline = cv2.getTextSize(path_text, font, font_scale, thickness)
+        display = path_text
+        if text_w > max_width:
+            # Truncate with ellipsis
+            ellipsis = "…"
+            max_chars = len(path_text)
+            while text_w > max_width and max_chars > 0:
+                max_chars -= 1
+                display = path_text[:max_chars] + ellipsis
+                (text_w, text_h), baseline = cv2.getTextSize(display, font, font_scale, thickness)
+        x0 = margin
+        y0 = margin
+        rect_tl = (x0 - 4, y0 - 4)
+        rect_br = (x0 + text_w + 4, y0 + text_h + 4)
+        cv2.rectangle(final, rect_tl, rect_br, (0, 0, 0), cv2.FILLED)
+        text_org = (x0, y0 + text_h)
+        cv2.putText(final, display, text_org, font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
         # Save final combined image
         combined_path = out_dir / f"{i:06d}.png"
 
