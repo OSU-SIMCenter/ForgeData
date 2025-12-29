@@ -86,8 +86,15 @@ def main():
             fig_save_path = default_save_path / "temp_reconstruction.html"
             plot_pointcloud(pcd, fig_save_path)
 
+            # Print the average radius of the from 0-20 mm in x
+            pcd_clip_i = np.where((pcd[:, 0] >= 1) & (pcd[:, 0] <= 20))[0]
+            pcd_clip = pcd[pcd_clip_i, :]
+            radii = np.linalg.norm(pcd_clip[:, 1:3], axis=1)
+            avg_radius = np.mean(radii[np.nonzero(radii)])
+            print(f"Average radius from 0-20 mm in x: {avg_radius:.2f} mm")
+
             if first_run:
-                webbrowser.open("file://" / fig_save_path)
+                webbrowser.open(str("file://" / fig_save_path))
                 first_run = False
             else:
                 print("Plot updated. Refresh your browser.")

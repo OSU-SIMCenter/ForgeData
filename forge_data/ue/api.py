@@ -23,6 +23,6 @@ def mesh_from_dataframe(df: pd.DataFrame, args=None) -> tuple[np.ndarray, np.nda
 
 @dataclass
 class ReconConfig:
-    default_axis_angle_vector: list[float] = field(default_factory=lambda: [1.0, 0.0, 0.0, 290])
-    default_optimization_bounds: tuple[tuple[float, float], ...] = ((0.8, 1), (-0.05, 0.05), (-0.05, 0.05), (280, 310))
+    default_axis_angle_vector: list[float] = field(default_factory=lambda: [1.0, 0.0, 0.0, 286.8])
+    default_optimization_bounds: tuple[tuple[float, float], ...] = ((0.8, 1), (-0.05, 0.05), (-0.05, 0.05), (280, 290))
     error_comp: bool = False
