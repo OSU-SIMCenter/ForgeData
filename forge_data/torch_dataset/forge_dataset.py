@@ -137,11 +137,7 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         # If a good x mesh is available, and a thermal frame is available, output a temperature field over the nodes of
         # x. This temperature field will assume uniform temperatures in the x direction.
-        if (T_frame is not None) and (x is not None):
-            # T_field=None
-            T_field = self._get_temperature_field(x, T_frame, a_x)
-        else:
-            T_field = None
+        T_field = self._get_temperature_field(x, T_frame, a_x) if (T_frame is not None) and (x is not None) else None
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -207,7 +203,7 @@ class ForgeDataset(torch.utils.data.Dataset):
         action = datapoint.a.cpu().numpy()
         x_pos = action[0] + 57.32  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
         theta = action[1] + 105  # TODO: TALK TO BRIAN THIS NUMBER IS WRONG
-        hit_radius = action[2]
+        action[2]
 
         # print(f"action tuple: {(x_pos, theta, hit_radius)}")
 
@@ -429,12 +425,12 @@ class ForgeDataset(torch.utils.data.Dataset):
         vis_dbg = False
 
         # Calibrate camera by hand, it's rigidly mounted
-        pixels_per_mm = (207-16)/50.8
-        mm_per_pixel = 1/pixels_per_mm
+        pixels_per_mm = (207 - 16) / 50.8
+        mm_per_pixel = 1 / pixels_per_mm
 
         # Filter out cold background temperatures
         threshold_temp = 800.0
-        thermal_workpiece = torch.where(thermal_frame > threshold_temp, thermal_frame, torch.tensor(float('nan')))
+        thermal_workpiece = torch.where(thermal_frame > threshold_temp, thermal_frame, torch.tensor(float("nan")))
         vis_np = thermal_workpiece.detach().cpu().numpy()
         T_profile_1d = np.nanmean(vis_np, axis=1)
         T_profile_1d[np.isnan(T_profile_1d)] = 800.0
@@ -466,12 +462,12 @@ class ForgeDataset(torch.utils.data.Dataset):
         mesh_points = x.vertices.cpu().numpy()
         vertex_temps = np.full(len(mesh_points), 800.0)  # Default/Ambient temp
         vertex_temps = np.interp(
-                        mesh_points[:, 0],
-                        pixel_coords_mm,
-                        T_profile_1d,
-                        # left=700.0,
-                        # right=700.0
-                    )
+            mesh_points[:, 0],
+            pixel_coords_mm,
+            T_profile_1d,
+            # left=700.0,
+            # right=700.0
+        )
 
         if vis_dbg:
             faces = x.faces.cpu().numpy()

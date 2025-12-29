@@ -83,10 +83,10 @@ def main():
         thickness = 2
         margin = 8
         max_width = final.shape[1] - 2 * margin
-        (text_w, text_h), baseline = cv2.getTextSize(path_text, font, font_scale, thickness)
+        (text_w, text_h), _ = cv2.getTextSize(path_text, font, font_scale, thickness)
         while text_w > max_width and font_scale > 0.4:
             font_scale -= 0.1
-            (text_w, text_h), baseline = cv2.getTextSize(path_text, font, font_scale, thickness)
+            (text_w, text_h), _ = cv2.getTextSize(path_text, font, font_scale, thickness)
         display = path_text
         if text_w > max_width:
             # Truncate with ellipsis
@@ -95,7 +95,7 @@ def main():
             while text_w > max_width and max_chars > 0:
                 max_chars -= 1
                 display = path_text[:max_chars] + ellipsis
-                (text_w, text_h), baseline = cv2.getTextSize(display, font, font_scale, thickness)
+                (text_w, text_h), _baseline = cv2.getTextSize(display, font, font_scale, thickness)
         x0 = margin
         y0 = margin
         rect_tl = (x0 - 4, y0 - 4)
@@ -112,6 +112,7 @@ def main():
 
         if i % max(1, (len(ds) // 10)) == 0:
             print(f"Saved frame {i}/{len(ds)} -> {combined_path}")
+
 
 if __name__ == "__main__":
     main()
