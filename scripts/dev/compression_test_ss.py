@@ -13,11 +13,49 @@ import pandas as pd
 
 from forge_data.torch_dataset.forge_dataset import ForgeDataset
 
+global clicked_points
+clicked_points = []
+
 script_dir = Path(__file__).resolve()
 project_root = script_dir.parent.parent.parent
 results_path = project_root / "data" / "results" / "compression_tests_ss"
 results_path.mkdir(parents=True, exist_ok=True)
+def calculate_slope(p1, p2):
+    """Calculates slope between two tuples (x, y)."""
+    x1, y1 = p1
+    x2, y2 = p2
+    if x2 - x1 == 0:
+        return float('inf')  # Vertical line
+    return (y2 - y1) / (x2 - x1)
 
+def on_click(event):
+    # Ensure the click is inside the plot axes
+    if event.inaxes is None:
+        return
+    
+    # Store points in a global or nonlocal list
+    global clicked_points
+    clicked_points.append((event.xdata, event.ydata))
+    
+    # Visual feedback: plot the point
+    plt.plot(event.xdata, event.ydata, 'ro')
+    plt.draw()
+    
+    if len(clicked_points) == 2:
+        p1, p2 = clicked_points[0], clicked_points[1]
+        slope = calculate_slope(p1, p2)
+        
+        # Draw a line between them
+        plt.plot([p1[0], p2[0]], [p1[1], p2[1]], 'r--')
+        plt.title(f"Slope: {slope:.4f}")
+        plt.draw()
+        
+        print(f"Point 1: {p1}")
+        print(f"Point 2: {p2}")
+        print(f"Calculated Slope: {slope}")
+        
+        # Reset for next pair
+        clicked_points.clear()
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -49,11 +87,11 @@ def main():
 
         load = load[contact_start_list[i] : contact_end_list[i]]
         stroke = stroke[contact_start_list[i] : contact_end_list[i]]
-        # plt.figure()
-        # plt.plot(load, color="tab:blue", linewidth=2, label="Load")
-        # plt.figure()
-        # plt.plot(stroke, color="tab:red", linewidth=2, linestyle="--", label="Stroke")
-        # plt.show()
+        plt.figure()
+        plt.plot(load, color="tab:blue", linewidth=2, label="Load")
+        plt.figure()
+        plt.plot(stroke, color="tab:red", linewidth=2, linestyle="--", label="Stroke")
+        plt.show()
 
         # Filter load/stroke to where load > 0
 
@@ -73,7 +111,7 @@ def main():
         # plt.figure()
         # plt.plot(-strain, stress, color="tab:blue", linewidth=2, linestyle="-", label="Stress/Strain")
         # plt.show()
-        # print(f"data point path: {data_point.path}")
+        print(f"data point path: {data_point.path}")
         df = pd.DataFrame({"strain": -strain, "stress_MPa": stress})
         df.to_csv(str(results_path / f"{data_point.path.split('/')[0]}.csv"))
         # stress_Pa = load / area_m2  # in Pascals
@@ -83,7 +121,16 @@ def main():
         # print(f"Data Point {i}:")
         # for s, e in zip(stress_Pa, strain, strict=False):
         # print(f"Strain: {e:.4f}, Stress: {s / 1e6:.2f} MPa")  # Print stress in MPa
+        fig, ax = plt.subplots()
+        ax.set_title("Click two points to find the slope")
 
+        # Replace this with your actual data/plot
+        ax.plot(-strain, stress) 
+
+        # Connect the click event to our function
+        cid = fig.canvas.mpl_connect('button_press_event', on_click)
+
+        plt.show()
 
 if __name__ == "__main__":
     main()
