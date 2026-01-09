@@ -30,8 +30,13 @@ class ForgeSample(NamedTuple):
     stroke: torch.Tensor  # Press position [mm]
     T_max: torch.Tensor  # Max temperature of workpiece during action [degC]
     T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
-    T_frame: torch.Tensor  # Thermal image [degC]
+    T_frame: torch.Tensor  # Thermal image during action [degC]
     T_field: torch.Tensor  # Temperature values of each node in mesh x [degC] n_nodes x 1
+    t_thermal: torch.Tensor # time for thermal video feed
+    T_0_t: torch.Tensor  # Average temperature in pixel set 0
+    T_1_t: torch.Tensor  # Average temperature in pixel set 1
+    T_2_t: torch.Tensor  # Average temperature in pixel set 2
+    T_3_t: torch.Tensor  # Average temperature in pixel set 3
     path: str  # Metadata (Debug path)
 
 
@@ -72,30 +77,33 @@ class ForgeDataset(torch.utils.data.Dataset):
         folder_name = path_.name
         parent_path_ = path_.parent
 
-        xv = None
-        xf = None
-        if folder_name == "H0000":
-            # Pull the stock .obj file instead of the previous scan, there is no stock scan
-            parent_group = f[parent_path_.as_posix()]
-            obj_key = None
-            for key in parent_group:
-                if key.endswith(".obj"):
-                    obj_key = key
-                    break
+        try:
+            xv = None
+            xf = None
+            if folder_name == "H0000":
+                # Pull the stock .obj file instead of the previous scan, there is no stock scan
+                parent_group = f[parent_path_.as_posix()]
+                obj_key = None
+                for key in parent_group:
+                    if key.endswith(".obj"):
+                        obj_key = key
+                        break
 
-            if obj_key:
-                xv = torch.from_numpy(parent_group[obj_key]["vertices"][:]).float()
-                xf = torch.from_numpy(parent_group[obj_key]["faces"][:]).long()
-        else:
-            curr_hit_num = int(folder_name[1:])
-            prev_hit_name = f"H{curr_hit_num - 1:04d}"
-            prev_path = f"{parent_path_.as_posix()}/{prev_hit_name}"
-            prev_group = f[prev_path]
-            xv = torch.from_numpy(prev_group["reconstructed_mesh/vertices"][:]).float()
-            xf = torch.from_numpy(prev_group["reconstructed_mesh/faces"][:]).long()
-        if xv is None or xf is None:
+                if obj_key:
+                    xv = torch.from_numpy(parent_group[obj_key]["vertices"][:]).float()
+                    xf = torch.from_numpy(parent_group[obj_key]["faces"][:]).long()
+            else:
+                curr_hit_num = int(folder_name[1:])
+                prev_hit_name = f"H{curr_hit_num - 1:04d}"
+                prev_path = f"{parent_path_.as_posix()}/{prev_hit_name}"
+                prev_group = f[prev_path]
+                xv = torch.from_numpy(prev_group["reconstructed_mesh/vertices"][:]).float()
+                xf = torch.from_numpy(prev_group["reconstructed_mesh/faces"][:]).long()
+            if xv is None or xf is None:
+                x = None
+            x = MeshData(vertices=xv, faces=xf)
+        except Exception:
             x = None
-        x = MeshData(vertices=xv, faces=xf)
 
         a_x = ls_data["X pos referenced to target part butt"][0]
         a_theta = ls_data["A"][0]
@@ -129,15 +137,34 @@ class ForgeDataset(torch.utils.data.Dataset):
             mask = temperature > 700
             T_avg = torch.tensor(np.mean(temperature[mask]))
             T_frame = torch.from_numpy(temperature)
-        except Exception:
+            thermal_timeline = torch.from_numpy(thermal_timeline)
+            t_thermal = thermal_timeline
+
+            x0_slice = np.s_[:, 110:150, 35:40]
+            x1_slice = np.s_[:, 110:150, 53:83]
+            raw_data_0 = thermal_group["frames"][x0_slice]
+            raw_data_1 = thermal_group["frames"][x1_slice]
+            T_0_history = raw_data_0.astype(np.float32) / 10.0 - 100.0
+            T_1_history = raw_data_1.astype(np.float32) / 10.0 - 100.0
+            T_0_t = np.mean(T_0_history, axis=(1, 2))
+            T_1_t = np.mean(T_1_history, axis=(1, 2))
+            T_2_t = None
+            T_3_t = None
+        except Exception as e:
+            print(e)
             # No thermal frames available for this datapoint
             T_max = None
             T_avg = None
             T_frame = None
+            t_thermal = None
+            T_0_t = None
+            T_1_t = None
+            T_2_t = None
+            T_3_t = None
 
         # If a good x mesh is available, and a thermal frame is available, output a temperature field over the nodes of
         # x. This temperature field will assume uniform temperatures in the x direction.
-        T_field = self._get_temperature_field(x, T_frame, a_x) if (T_frame is not None) and (x is not None) else None
+        T_field = self._get_temperature_field(x, T_frame, a_x) if (T_frame is not None) and (x is not None) and (x.vertices is not None) else None
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -152,6 +179,11 @@ class ForgeDataset(torch.utils.data.Dataset):
             T_avg=T_avg,
             T_frame=T_frame,
             T_field=T_field,
+            t_thermal=t_thermal,
+            T_0_t=T_0_t,
+            T_1_t=T_1_t,
+            T_2_t=T_2_t,
+            T_3_t=T_3_t,
             path=curr_path,
         )
 

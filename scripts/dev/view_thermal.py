@@ -15,21 +15,26 @@ project_root = script_dir.parent.parent
 
 def get_thermal_datasets(h5_file):
     """
-    This will return the first temp dataset it finds.
+    Returns a list of all temperature dataset pairs (frames, time) found in the h5 file.
     """
-    data = []
+    all_thermal_data = []
 
     def visitor(name, node):
-        print(name)
-        if isinstance(node, h5py.Group) and (name.endswith("/t") or name == "t"):
-            data.append(node["frames"])
-            data.append(node["time"])
-            return True
+        # Look for groups that represent a thermal dataset
+        if isinstance(node, h5py.Group) and (name.endswith("/t") or name == "t") and "frames" in node and "time" in node:
+            all_thermal_data.append({
+                "path": name,
+                "frames": node["frames"],
+                "time": node["time"]
+            })
         return None
 
     h5_file.visititems(visitor)
-    return data[0], data[1]
 
+    if not all_thermal_data:
+        print("No thermal datasets found.")
+
+    return all_thermal_data
 
 def main():
     parser = argparse.ArgumentParser()
@@ -42,11 +47,19 @@ def main():
     h5_path = Path(args.h5_path)
 
     with h5py.File(h5_path, "r") as f:
-        frames, time = get_thermal_datasets(f)
+        thermal_datasets = get_thermal_datasets(f)
+
+        if not thermal_datasets:
+            print("No thermal datasets found.")
+            return
+
+        dataset = thermal_datasets[10]
+        frames = dataset["frames"]
+        time = dataset["time"]
 
         fps = 60
         delay_ms = int(1000 / fps)
-        stride = 20
+        stride = 1
 
         h, w = frames.shape[1:]
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")

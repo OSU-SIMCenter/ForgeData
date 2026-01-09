@@ -25,7 +25,7 @@ def main():
     print(f"There are {len(ds)} data points in the database.")
     # ds.print_h5_structure()
 
-    # example_datapoint = ds[99]
+    example_datapoint = ds[2]
     # print(x0)
 
     # ds.plot_state_action(10)
@@ -34,19 +34,20 @@ def main():
     #     print(i)
     # ds.plot_state_action(10)
 
-    ds.plot_load_stroke(0)
+    # ds.plot_load_stroke(0)
     ds.plot_thermal_frame(0)
     print(f"T_max of ds[0]: {ds[0].T_max}")
     print(f"T_avg of ds[0]: {ds[0].T_avg}")
-    ds.plot_load_stroke(1)
+    # ds.plot_load_stroke(1)
     ds.plot_thermal_frame(1)
     print(f"T_max of ds[1]: {ds[1].T_max}")
     print(f"T_avg of ds[1]: {ds[1].T_avg}")
+    print(ds[1].T_1_t)
 
     # Show a thermal snapshot for every action in the database
-    # for i in range(len(ds)):
-    # ds.plot_thermal_frame(i)
-
+    for i in range(len(ds)):
+        ds.plot_load_stroke(i)
+        ds.plot_thermal_frame(i)
     # T_path = project_root / "data"
     # T_path.mkdir(parents=True, exist_ok=True)
     # ds.save_thermal_video(T_path / "Temperature_snaps.mp4")
