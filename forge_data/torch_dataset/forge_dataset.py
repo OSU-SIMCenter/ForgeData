@@ -332,6 +332,34 @@ class ForgeDataset(torch.utils.data.Dataset):
             cv2.imshow("Thermal Video (press q/esc to quit)", colorized)
             cv2.waitKey(0)
 
+    def plot_thermal_frame_callback(self, idx, return_image=False):
+        datapoint = self[idx]
+        if datapoint.T_frame is None:
+            return np.zeros((256, 256, 3), dtype=np.uint8) if return_image else print("No thermal frame available for this datapoint")
+
+        T_raw = datapoint.T_frame.cpu().numpy()
+        vis = cv2.normalize(T_raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+
+        if return_image:
+            return cv2.cvtColor(colorized, cv2.COLOR_BGR2RGB)
+
+        def show_temp(event, x, y, flags, param):
+            if event == cv2.EVENT_MOUSEMOVE:
+                img_copy = colorized.copy()
+                temp_val = T_raw[y, x] # Note: numpy uses [row, col] -> [y, x]
+                text = f"{temp_val:.2f} C"
+                cv2.putText(img_copy, text, (x + 10, y - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.imshow("Thermal Video", img_copy)
+
+        cv2.namedWindow("Thermal Video")
+        cv2.setMouseCallback("Thermal Video", show_temp)
+
+        cv2.imshow("Thermal Video", colorized)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     def plot_temperature_field(self, idx, return_image=False, window_size=(512, 1024), clim=None):
         """
         Render mesh `x` colored by `T_field` (per-vertex temperature) and return an RGB image when
