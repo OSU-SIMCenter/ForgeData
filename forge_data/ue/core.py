@@ -1,5 +1,6 @@
 import time
 from functools import wraps
+import warnings
 
 import numpy as np
 import open3d as o3d
@@ -7,7 +8,7 @@ import scipy.optimize
 from scipy.spatial.transform import Rotation
 
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
-
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 def timeit(func):
     @wraps(func)

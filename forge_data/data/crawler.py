@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 
 import h5py
+from tqdm import tqdm
 
 from forge_data.data.parser import process_linescanner_file, process_load_stroke_file, process_obj_file
 from forge_data.ue.api import mesh_from_dataframe
@@ -21,7 +22,7 @@ def process_raw_directory(raw_path, save_path):
 
     h5_conn = h5py.File(h5_path, "a")
 
-    for item in raw_path.iterdir():
+    for item in tqdm(list(raw_path.iterdir()), desc="Processing Raw Data", unit="dir"):
         if item.is_dir():
             if TP_REGEX.search(item.name):
                 process_TP_directory(item, h5_conn)
@@ -62,10 +63,13 @@ def process_TP_directory(path, h5_conn):
         if "scan" in hit_files:
             scan_file = hit_files["scan"]
             df = process_linescanner_file(scan_file)
-            vertices, faces = mesh_from_dataframe(df)
-            db_key = db_keybase + "/reconstructed_mesh"
-            h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
-            h5_conn.create_dataset(f"{db_key}/faces", data=faces)
+            try:
+                vertices, faces = mesh_from_dataframe(df)
+                db_key = db_keybase + "/reconstructed_mesh"
+                h5_conn.create_dataset(f"{db_key}/vertices", data=vertices)
+                h5_conn.create_dataset(f"{db_key}/faces", data=faces)
+            except Exception as e:
+                tqdm.write(f"Warning: Mesh reconstruction failed for {db_keybase}. Error: {e}")
 
         if "load_stroke" in hit_files:
             ls_file = hit_files["load_stroke"]

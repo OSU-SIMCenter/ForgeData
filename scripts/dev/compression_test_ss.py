@@ -66,8 +66,8 @@ def main():
     print(f"There are {len(ds)} data points in the database.")
 
     # Since there are only 6 compression tests, pick start/end indices by hand
-    contact_start_list = [571, 423, 401, 416, 417, 400, 413]
-    contact_end_list = [620, 539, 506, 493, 493, 443, 458]
+    contact_start_list = [571, 423, 401, 416, 417, 400, 413,0,0,0,0,0,0]
+    contact_end_list = [620, 539, 506, 493, 493, 443, 458,-1,-1,-1,-1,-1,-1]
 
     # Hand-calculated machine compliance for removing from stroke data
 
@@ -82,14 +82,14 @@ def main():
         load = data_point.load.cpu().numpy() * 1000  # [N]
         stroke = data_point.stroke.cpu().numpy()  # [mm]
         ds.plot_load_stroke(i)
-        plt.figure()
-        plt.plot(load)
-        plt.title("Load vs. Index (t)")
-        plt.show()
-        plt.figure()
-        plt.plot(np.abs(stroke), load)
-        plt.title("Load vs. Stroke")
-        plt.show()
+        # plt.figure()
+        # plt.plot(load)
+        # plt.title("Load vs. Index (t)")
+        # plt.show()
+        # plt.figure()
+        # plt.plot(np.abs(stroke), load)
+        # plt.title("Load vs. Stroke")
+        # plt.show()
 
         load = load[contact_start_list[i] : contact_end_list[i]]
         stroke = stroke[contact_start_list[i] : contact_end_list[i]]
@@ -116,26 +116,26 @@ def main():
         # S = (π*d0^2)/4*L0/(L0+ΔL)
         S = area * l0 / (l0 + delta_l)  # [mm^2]
         stress = load / (S)  # [N/mm^2] = [MPa]
-        plt.figure(figsize=(8, 6))
-        plt.plot(np.abs(strain), stress, color="tab:blue", linewidth=2, linestyle="-", label="True Stress-Strain (Corrected)")
-        plt.title("True Stress vs. True Strain\n15-5PH Steel")
-        plt.xlabel("True Strain")
-        plt.ylabel("True Stress [MPa]")
-        plt.grid(True, which='both', linestyle='--', alpha=0.7)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        # plt.figure(figsize=(8, 6))
+        # plt.plot(np.abs(strain), stress, color="tab:blue", linewidth=2, linestyle="-", label="True Stress-Strain (Corrected)")
+        # plt.title("True Stress vs. True Strain\n15-5PH Steel")
+        # plt.xlabel("True Strain")
+        # plt.ylabel("True Stress [MPa]")
+        # plt.grid(True, which='both', linestyle='--', alpha=0.7)
+        # plt.legend()
+        # plt.tight_layout()
+        # plt.show()
         print(f"data point path: {data_point.path}")
         df = pd.DataFrame({"strain": -strain, "stress_MPa": stress})
         df.to_csv(str(results_path / f"{data_point.path.split('/')[0]}.csv"))
 
-        fig, ax = plt.subplots()
-        ax.set_title("Click two points to find the slope")
+        # fig, ax = plt.subplots()
+        # ax.set_title("Click two points to find the slope")
 
-        ax.plot(np.abs(strain), stress)
-        cid = fig.canvas.mpl_connect('button_press_event', on_click)
+        # ax.plot(np.abs(strain), stress)
+        # cid = fig.canvas.mpl_connect('button_press_event', on_click)
 
-        plt.show()
+        # plt.show()
 
 if __name__ == "__main__":
     main()
