@@ -5,7 +5,7 @@ import cv2
 import h5py
 import matplotlib
 
-matplotlib.use("TkAgg")  # OpenCV busted default, this fixes error in plot_load_stroke on Ubuntu
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
