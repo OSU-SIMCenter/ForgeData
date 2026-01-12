@@ -1,6 +1,7 @@
 /data/
 docs/source
 .vscode/
+*.mp4
 
 # From https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore
 

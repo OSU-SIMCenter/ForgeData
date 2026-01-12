@@ -37,6 +37,8 @@ class ForgeSample(NamedTuple):
     T_1_t: torch.Tensor  # Average temperature in pixel set 1
     T_2_t: torch.Tensor  # Average temperature in pixel set 2
     T_3_t: torch.Tensor  # Average temperature in pixel set 3
+    T_4_t: torch.Tensor
+    T_5_t: torch.Tensor
     path: str  # Metadata (Debug path)
 
 
@@ -140,16 +142,31 @@ class ForgeDataset(torch.utils.data.Dataset):
             thermal_timeline = torch.from_numpy(thermal_timeline)
             t_thermal = thermal_timeline
 
+            # Sorry for hardcoding, TODO fix later
             x0_slice = np.s_[:, 110:150, 35:40]
-            x1_slice = np.s_[:, 110:150, 53:83]
+            x1_slice = np.s_[:, 80:90, 53:70]
+            x2_slice = np.s_[:, 110:150, 53:70]
+            x3_slice = np.s_[:, 170:180, 53:70]
+            x4_slice = np.s_[:, 200:210, 53:70]
+            x5_slice = np.s_[:, 230:240, 53:70]
             raw_data_0 = thermal_group["frames"][x0_slice]
             raw_data_1 = thermal_group["frames"][x1_slice]
+            raw_data_2 = thermal_group["frames"][x2_slice]
+            raw_data_3 = thermal_group["frames"][x3_slice]
+            raw_data_4 = thermal_group["frames"][x4_slice]
+            raw_data_5 = thermal_group["frames"][x5_slice]
             T_0_history = raw_data_0.astype(np.float32) / 10.0 - 100.0
             T_1_history = raw_data_1.astype(np.float32) / 10.0 - 100.0
-            T_0_t = np.mean(T_0_history, axis=(1, 2))
-            T_1_t = np.mean(T_1_history, axis=(1, 2))
-            T_2_t = None
-            T_3_t = None
+            T_2_history = raw_data_2.astype(np.float32) / 10.0 - 100.0
+            T_3_history = raw_data_3.astype(np.float32) / 10.0 - 100.0
+            T_4_history = raw_data_4.astype(np.float32) / 10.0 - 100.0
+            T_5_history = raw_data_5.astype(np.float32) / 10.0 - 100.0
+            T_0_t = torch.from_numpy(np.mean(T_0_history, axis=(1, 2)))
+            T_1_t = torch.from_numpy(np.mean(T_1_history, axis=(1, 2)))
+            T_2_t = torch.from_numpy(np.mean(T_2_history, axis=(1, 2)))
+            T_3_t = torch.from_numpy(np.mean(T_3_history, axis=(1, 2)))
+            T_4_t = torch.from_numpy(np.mean(T_4_history, axis=(1, 2)))
+            T_5_t = torch.from_numpy(np.mean(T_5_history, axis=(1, 2)))
         except Exception as e:
             print(e)
             # No thermal frames available for this datapoint
@@ -161,6 +178,8 @@ class ForgeDataset(torch.utils.data.Dataset):
             T_1_t = None
             T_2_t = None
             T_3_t = None
+            T_4_t = None
+            T_5_t = None
 
         # If a good x mesh is available, and a thermal frame is available, output a temperature field over the nodes of
         # x. This temperature field will assume uniform temperatures in the x direction.
@@ -184,6 +203,8 @@ class ForgeDataset(torch.utils.data.Dataset):
             T_1_t=T_1_t,
             T_2_t=T_2_t,
             T_3_t=T_3_t,
+            T_4_t=T_4_t,
+            T_5_t=T_5_t,
             path=curr_path,
         )
 

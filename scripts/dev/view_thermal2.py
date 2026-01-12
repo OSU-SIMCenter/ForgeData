@@ -18,6 +18,14 @@ def main():
     parser.add_argument("--h5-path", type=Path, required=True)
     args = parser.parse_args()
 
+    # Pixel sets for the thermal analysis
+    x0_slice = np.s_[:, 110:150, 35:40]
+    x1_slice = np.s_[:, 80:90, 53:70]
+    x2_slice = np.s_[:, 110:150, 53:70]
+    x3_slice = np.s_[:, 170:180, 53:70]
+    x4_slice = np.s_[:, 200:210, 53:70]
+    x5_slice = np.s_[:, 230:240, 53:70]
+
     with h5py.File(args.h5_path, "r") as f:
         thermal_datasets = get_thermal_datasets(f)
         if not thermal_datasets: return
@@ -51,6 +59,24 @@ def main():
 
             vis = cv2.normalize(frame_c, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
             colorized = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+
+
+            # Place bounding boxes over regions of interest
+            regions = [
+                (x0_slice, "T0", (0, 255, 0)),  # Green
+                (x1_slice, "T1", (255, 255, 0)), # Cyan
+                (x2_slice, "T2", (255, 0, 0)),  # Blue
+                (x3_slice, "T3", (0, 0, 255)),  # Red
+                (x4_slice, "T4", (128, 0, 128)), # Purple
+                (x5_slice, "T5", (255, 0, 255)) # Magenta
+            ]
+            for slc, label, color in regions:
+                y_start, y_end = slc[1].start, slc[1].stop
+                x_start, x_end = slc[2].start, slc[2].stop
+                cv2.rectangle(colorized, (x_start, y_start), (x_end, y_end), color, 1)
+                cv2.putText(colorized, label, (x_start, y_start - 5), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
 
             mx, my = state["mouse_pos"]
             if 0 <= mx < colorized.shape[1] and 0 <= my < colorized.shape[0]:
