@@ -2,6 +2,8 @@
 docs/source
 .vscode/
 *.obj
+*.mp4
+
 # From https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore
 
 # Byte-compiled / optimized / DLL files

@@ -178,6 +178,7 @@ def main():
         plt.title("Load & Stroke vs. Time", fontsize=14)
         plt.tight_layout()
 
+
         # Baseline plots
         if "(baseline)" in datapoint.path:
             # fig, ax1 = plt.subplots(figsize=(6, 4))
@@ -229,6 +230,19 @@ def main():
         cid = fig.canvas.mpl_connect("button_press_event", on_click)
         plt.title("True stress/strain", fontsize=14)
         plt.tight_layout()
+
+
+        # Plot strain rate
+        fig, ax1 = plt.subplots(figsize=(6, 4))
+        ax1.set_xlabel("Index", fontsize=12)
+        ax1.set_ylabel("Strain", fontsize=12)
+        line1 = ax1.plot(t, strain, color="tab:blue", linewidth=2, label="Strain")
+        ax1.tick_params(axis="y")
+        ax1.grid(True, linestyle="--", alpha=0.7)
+        plt.title("Strain vs. Time", fontsize=14)
+        cid = fig.canvas.mpl_connect('button_press_event', on_click)
+        plt.tight_layout()
+
 
         plt.show()
 
