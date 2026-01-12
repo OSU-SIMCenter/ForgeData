@@ -32,7 +32,7 @@ class ForgeSample(NamedTuple):
     T_avg: torch.Tensor  # Mean temperature of workpiece during action [degC]
     T_frame: torch.Tensor  # Thermal image during action [degC]
     T_field: torch.Tensor  # Temperature values of each node in mesh x [degC] n_nodes x 1
-    t_thermal: torch.Tensor # time for thermal video feed
+    t_thermal: torch.Tensor  # time for thermal video feed
     T_0_t: torch.Tensor  # Average temperature in pixel set 0
     T_1_t: torch.Tensor  # Average temperature in pixel set 1
     T_2_t: torch.Tensor  # Average temperature in pixel set 2
@@ -164,7 +164,11 @@ class ForgeDataset(torch.utils.data.Dataset):
 
         # If a good x mesh is available, and a thermal frame is available, output a temperature field over the nodes of
         # x. This temperature field will assume uniform temperatures in the x direction.
-        T_field = self._get_temperature_field(x, T_frame, a_x) if (T_frame is not None) and (x is not None) and (x.vertices is not None) else None
+        T_field = (
+            self._get_temperature_field(x, T_frame, a_x)
+            if (T_frame is not None) and (x is not None) and (x.vertices is not None)
+            else None
+        )
 
         # NOTE I think for batched dataloader you need ForgeData mesh tensors to always have the same size, or use some
         # collate function
@@ -367,7 +371,11 @@ class ForgeDataset(torch.utils.data.Dataset):
     def plot_thermal_frame_callback(self, idx, return_image=False):
         datapoint = self[idx]
         if datapoint.T_frame is None:
-            return np.zeros((256, 256, 3), dtype=np.uint8) if return_image else print("No thermal frame available for this datapoint")
+            return (
+                np.zeros((256, 256, 3), dtype=np.uint8)
+                if return_image
+                else print("No thermal frame available for this datapoint")
+            )
 
         T_raw = datapoint.T_frame.cpu().numpy()
         vis = cv2.normalize(T_raw, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
@@ -379,10 +387,9 @@ class ForgeDataset(torch.utils.data.Dataset):
         def show_temp(event, x, y, flags, param):
             if event == cv2.EVENT_MOUSEMOVE:
                 img_copy = colorized.copy()
-                temp_val = T_raw[y, x] # Note: numpy uses [row, col] -> [y, x]
+                temp_val = T_raw[y, x]  # Note: numpy uses [row, col] -> [y, x]
                 text = f"{temp_val:.2f} C"
-                cv2.putText(img_copy, text, (x + 10, y - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.putText(img_copy, text, (x + 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                 cv2.imshow("Thermal Video", img_copy)
 
         cv2.namedWindow("Thermal Video")

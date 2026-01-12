@@ -21,12 +21,13 @@ def get_thermal_datasets(h5_file):
 
     def visitor(name, node):
         # Look for groups that represent a thermal dataset
-        if isinstance(node, h5py.Group) and (name.endswith("/t") or name == "t") and "frames" in node and "time" in node:
-            all_thermal_data.append({
-                "path": name,
-                "frames": node["frames"],
-                "time": node["time"]
-            })
+        if (
+            isinstance(node, h5py.Group)
+            and (name.endswith("/t") or name == "t")
+            and "frames" in node
+            and "time" in node
+        ):
+            all_thermal_data.append({"path": name, "frames": node["frames"], "time": node["time"]})
         return None
 
     h5_file.visititems(visitor)
@@ -35,6 +36,7 @@ def get_thermal_datasets(h5_file):
         print("No thermal datasets found.")
 
     return all_thermal_data
+
 
 def main():
     parser = argparse.ArgumentParser()

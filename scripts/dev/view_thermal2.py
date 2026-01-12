@@ -4,14 +4,23 @@ import cv2
 import h5py
 import numpy as np
 
+
 def get_thermal_datasets(h5_file):
     all_thermal_data = []
+
     def visitor(name, node):
-        if isinstance(node, h5py.Group) and (name.endswith("/t") or name == "t") and "frames" in node and "time" in node:
+        if (
+            isinstance(node, h5py.Group)
+            and (name.endswith("/t") or name == "t")
+            and "frames" in node
+            and "time" in node
+        ):
             all_thermal_data.append({"path": name, "frames": node, "time": node["time"]})
         return None
+
     h5_file.visititems(visitor)
     return all_thermal_data
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -20,9 +29,8 @@ def main():
 
     with h5py.File(args.h5_path, "r") as f:
         thermal_datasets = get_thermal_datasets(f)
-        if not thermal_datasets: return
-
-
+        if not thermal_datasets:
+            return
 
         dataset = thermal_datasets[0]
         frames = dataset["frames"]["frames"]
@@ -62,15 +70,22 @@ def main():
                 # Draw text with shadow for readability
                 cv2.putText(colorized, t_str, (mx + 15, my), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
                 cv2.putText(colorized, t_str, (mx + 15, my), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            cv2.putText(colorized, f"Time: {times[idx]:.4f}s | Frame: {idx}", (10, 20), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.putText(
+                colorized,
+                f"Time: {times[idx]:.4f}s | Frame: {idx}",
+                (10, 20),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+            )
 
             cv2.imshow(window_name, colorized)
 
             key = cv2.waitKey(30) & 0xFF
-            if key == ord(' '): # Toggle pause
+            if key == ord(" "):  # Toggle pause
                 state["paused"] = not state["paused"]
-            elif key == ord('q') or key == 27:
+            elif key == ord("q") or key == 27:
                 break
 
             if not state["paused"]:
@@ -78,6 +93,7 @@ def main():
                 cv2.setTrackbarPos("Frame", window_name, state["index"])
 
         cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()

@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+
 def timeit(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
