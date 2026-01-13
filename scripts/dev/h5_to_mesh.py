@@ -23,7 +23,7 @@ def main():
 
     print(f"There are {len(ds)} data points in the database.")
 
-    mesh = ds[5].y
+    mesh = ds[0].y
 
     v = mesh.vertices.cpu().numpy()
     f = mesh.faces.cpu().numpy()
@@ -31,7 +31,7 @@ def main():
     o3d_mesh = o3d.geometry.TriangleMesh()
     o3d_mesh.vertices = o3d.utility.Vector3dVector(v.astype(np.float64))
     o3d_mesh.triangles = o3d.utility.Vector3iVector(f.astype(np.int32))
-    o3d.io.write_triangle_mesh("output_mesh.obj", o3d_mesh)
+    o3d.io.write_triangle_mesh(str(args.h5_path.parent / "output_mesh.obj"), o3d_mesh)
 
 
 if __name__ == "__main__":

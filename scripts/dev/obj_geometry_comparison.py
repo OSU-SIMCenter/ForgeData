@@ -34,11 +34,22 @@ def main():
     chamfer_dist = np.mean(np.square(dists_1to2)) + np.mean(np.square(dists_2to1))
     hausdorff_dist = max(max(dists_1to2), max(dists_2to1))  # https://en.wikipedia.org/wiki/Hausdorff_distance
 
-    print(f"Metrics for {args.m1_path.name} vs {args.m2_path.name}:")
-    print(f"{'-' * 40}")
-    print(f"Chamfer Distance:    {chamfer_dist:.6f} [mm2]")
-    print(f"Hausdorff Distance:  {hausdorff_dist:.6f} [mm]")
+    output = (
+        f"Metrics for {args.m1_path.name} vs {args.m2_path.name}:\n"
+        f"Mesh 1: {args.m1_path.resolve()}\n"
+        f"Mesh 2: {args.m2_path.resolve()}\n"
+        f"{'-' * 40}\n"
+        f"Chamfer Distance:    {chamfer_dist:.6f} [mm2]\n"
+        f"Hausdorff Distance:  {hausdorff_dist:.6f} [mm]\n"
+    )
 
+    print(output)
+    output_file = args.m1_path.parent / "geom_comp_metrics.txt"
+    try:
+        output_file.write_text(output)
+        print(f"Results saved to: {output_file}")
+    except Exception as e:
+        print(f"Error saving to disk: {e}")
 
 if __name__ == "__main__":
     main()
